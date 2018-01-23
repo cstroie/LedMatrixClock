@@ -42,7 +42,7 @@ RTC_DS3231 rtc;
 // The matrix object
 LedControl mtx = LedControl(DIN_PIN, CLK_PIN, CS_PIN, 3);
 
-uint8_t mtxBrightness = 2;
+uint8_t mtxBrightness = 1;
 
 /**
   Show the time
@@ -101,16 +101,32 @@ void setup() {
   if (rtc.lostPower()) {
     Serial.println(F("RTC lost power, lets set the time!"));
     // The next line sets the RTC to the date & time this sketch was compiled
-    //rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
     // This line sets the RTC with an explicit date & time, for example to set
     // January 21, 2014 at 3am you would call:
     // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
   }
+
+  //rtc.adjust(DateTime(2018, 1, 23, 20, 50, 30));
+
+  DateTime now = rtc.now();
+
+  Serial.print(now.year(), DEC);
+  Serial.print('/');
+  Serial.print(now.month(), DEC);
+  Serial.print('/');
+  Serial.print(now.day(), DEC);
+  Serial.print(' ');
+  Serial.print(now.hour(), DEC);
+  Serial.print(':');
+  Serial.print(now.minute(), DEC);
+  Serial.print(':');
+  Serial.print(now.second(), DEC);
+  Serial.println();
 }
 
 
 void loop() {
   DateTime now = rtc.now();
-  Serial.println(now.unixtime());
   mtxShowTime(now.hour(), now.minute());
 }

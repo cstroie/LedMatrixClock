@@ -11,7 +11,7 @@
 #ifndef FNTSTD_H
 #define FNTSTD_H
 
-const uint64_t IMAGES[] = {
+const uint64_t IMAGES[] PROGMEM = {
   0x00708898a8c88870,
   0x0070202020203020,
   0x00f8102040808870,

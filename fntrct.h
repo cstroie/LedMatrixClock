@@ -11,7 +11,7 @@
 #ifndef FNTCRT_H
 #define FNTCRT_H
 
-const uint64_t IMAGES[] = {
+const uint64_t IMAGES[] PROGMEM = {
   0xf8888888888888f8,
   0x808080808080c080,
   0xf8080808f88080f8,
