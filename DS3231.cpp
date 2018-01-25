@@ -41,16 +41,24 @@ bool DS3231::readTime(bool readDate) {
     Wire.requestFrom(rtcAddr, 7);
   else
     Wire.requestFrom(rtcAddr, 3);
-  SS = BCD2DEC(Wire.read());
-  MM = BCD2DEC(Wire.read());
-  HH = BCD2DEC(Wire.read() & 0x3F);
+
+  SS = Wire.read();
+  SS = BCD2DEC(SS);
+  MM = Wire.read();
+  MM = BCD2DEC(MM);
+  HH = Wire.read() & 0x3F;
+  HH = BCD2DEC(HH);
   if (readDate) {
-    dw = BCD2DEC(Wire.read() & 0x07);
-    dd = BCD2DEC(Wire.read());
+    dw = Wire.read() & 0x07;
+    dw = BCD2DEC(dw);
+    dd = Wire.read();
+    dd = BCD2DEC(dd);
     mm = Wire.read();
     if (mm & 0x80) cy = 1;
-    mm = BCD2DEC(mm & 0x1F);
-    yy = BCD2DEC(Wire.read());
+    mm &= 0x1F;
+    mm = BCD2DEC(mm);
+    yy = Wire.read();
+    yy = BCD2DEC(yy);
     yyyy = 100 * (cc + cy) + yy;
   }
   return true;
