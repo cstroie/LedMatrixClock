@@ -11,7 +11,7 @@
 #ifndef FNTBLD_H
 #define FNTBLD_H
 
-const uint64_t IMAGES[] PROGMEM = {
+const uint64_t FNTBLD[] PROGMEM = {
   0x70c8c8c8c8c8c870,
   0xf060606060607060,
   0xf8183060c0c0c870,
@@ -23,6 +23,5 @@ const uint64_t IMAGES[] PROGMEM = {
   0x70c8c8c870c8c870,
   0x70c8c0f0c8c8c870,
 };
-const int IMAGES_LEN = sizeof(IMAGES) / 8;
 
 #endif /* FNTBLD_H */

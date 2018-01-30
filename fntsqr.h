@@ -11,7 +11,7 @@
 #ifndef FNTSQR_H
 #define FNTSQR_H
 
-const uint64_t IMAGES[] PROGMEM = {
+const uint64_t FNTSQR[] PROGMEM = {
   0x00f8888888f80000,
   0x0070202020300000,
   0x00f808f880f80000,
@@ -23,6 +23,5 @@ const uint64_t IMAGES[] PROGMEM = {
   0x00f888f888f80000,
   0x00f880f888f80000
 };
-const int IMAGES_LEN = sizeof(IMAGES) / 8;
 
 #endif /* FNTSQR_H */

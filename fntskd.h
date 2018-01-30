@@ -11,7 +11,7 @@
 #ifndef FNTSKD_H
 #define FNTSKD_H
 
-const uint64_t IMAGES[] PROGMEM = {
+const uint64_t FNTSKD[] PROGMEM = {
   0x0070888888888870,
   0x0070202020202030,
   0x00f8080870808078,
@@ -23,6 +23,5 @@ const uint64_t IMAGES[] PROGMEM = {
   0x0070888870888870,
   0x00708080f0888870
 };
-const int IMAGES_LEN = sizeof(IMAGES) / 8;
 
 #endif /* FNTSKD_H */

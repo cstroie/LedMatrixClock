@@ -11,7 +11,7 @@
 #ifndef FNTHEL_H
 #define FNTHEL_H
 
-const uint64_t IMAGES[] PROGMEM = {
+const uint64_t FNTHEL[] PROGMEM = {
   0x0008705050507080,
   0x0070202020283020,
   0x00f8081060808870,
@@ -23,6 +23,5 @@ const uint64_t IMAGES[] PROGMEM = {
   0x0070888870888870,
   0x00708080f0888870
 };
-const int IMAGES_LEN = sizeof(IMAGES)/8;
 
 #endif /* FNTHEL_H */

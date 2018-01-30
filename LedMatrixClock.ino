@@ -27,20 +27,19 @@ const int DIN_PIN = 11;
 const int CS_PIN  = 13;
 const int CLK_PIN = 12;
 
-// Define the digits
-//#include "fntrct.h"
-//#include "fntsqr.h"
-//#include "fntstd.h"
-#include "fntbld.h"
+// Load the fonts
+#include "fonts.h"
 
 // The RTC
 DS3231 rtc;
 
 // The matrix object
-LedControl mtx = LedControl(DIN_PIN, CLK_PIN, CS_PIN, 3);
-// The font
-uint8_t DIGIT[16][8] = {0};
+#define MATRICES 3
+LedControl mtx = LedControl(DIN_PIN, CLK_PIN, CS_PIN, MATRICES);
 
+// The currently selected font
+uint8_t DIGIT[16][8] = {0};
+// Display brightness
 uint8_t mtxBrightness = 1;
 
 /**
@@ -49,8 +48,16 @@ uint8_t mtxBrightness = 1;
   @param font the font id
 */
 void loadFont(uint8_t font) {
-  for (int i = 0; i < IMAGES_LEN; i++)
-    memcpy_P(&DIGIT[i], &IMAGES[i], 8);
+  /*
+    uint8_t *buf = new uint8_t[16];
+    if (buf) {
+        memcpy_P(buf, FONTS[font], len_xyz);
+       }
+    uint8_t *p = &FONTS[font];
+  */
+  int fontSize = sizeof(FONT) / 8;
+  for (int i = 0; i < fontSize; i++)
+    memcpy_P(&DIGIT[i], &FONT[i], 8);
 }
 
 /**
@@ -59,7 +66,7 @@ void loadFont(uint8_t font) {
   @param hh hours   0..23
   @param mm minutes 0..59
 */
-void mtxShowTime(uint8_t hh, uint8_t mm) {
+void showTime(uint8_t hh, uint8_t mm) {
   // Keep previous values for hours and minutes
   static uint8_t _hh = 255, _mm = 255;
 
@@ -135,5 +142,5 @@ void setup() {
 */
 void loop() {
   rtc.readTime();
-  mtxShowTime(rtc.HH, rtc.MM);
+  showTime(rtc.HH, rtc.MM);
 }

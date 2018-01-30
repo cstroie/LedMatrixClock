@@ -11,7 +11,7 @@
 #ifndef FNTLTW_H
 #define FNTLTW_H
 
-const uint64_t IMAGES[] PROGMEM = {
+const uint64_t FNTLTW[] PROGMEM = {
   0x0070d8d8d8d8d870,
   0x0060606060607860,
   0x00f8183060c0d870,
@@ -23,6 +23,5 @@ const uint64_t IMAGES[] PROGMEM = {
   0x0070d8d870d8d870,
   0x0070d8c0f0d8d870
 };
-const int IMAGES_LEN = sizeof(IMAGES)/8;
 
 #endif /* FNTLTW_H */

@@ -11,7 +11,7 @@
 #ifndef FNTCPM_H
 #define FNTCPM_H
 
-const uint64_t IMAGES[] PROGMEM = {
+const uint64_t FNTCPM[] PROGMEM = {
   0x00708898a8c88870,
   0x0070202020203020,
   0x00f8102040808870,
@@ -23,6 +23,5 @@ const uint64_t IMAGES[] PROGMEM = {
   0x0070888870888870,
   0x00304080f0888870
 };
-const int IMAGES_LEN = sizeof(IMAGES)/8;
 
 #endif /* FNTCPM_H */

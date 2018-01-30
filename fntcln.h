@@ -11,7 +11,7 @@
 #ifndef FNTCLN_H
 #define FNTCLN_H
 
-const uint64_t IMAGES[] PROGMEM = {
+const uint64_t FNTCLN[] PROGMEM = {
   0x70d8d8d8d8d8d870,
   0x6060606060607060,
   0xf830306060c0d870,
@@ -23,6 +23,5 @@ const uint64_t IMAGES[] PROGMEM = {
   0x70d8d8d870d8d870,
   0x3060c0f0d8d8d870
 };
-const int IMAGES_LEN = sizeof(IMAGES) / 8;
 
 #endif /* FNTCLN_H */
