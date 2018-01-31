@@ -55,9 +55,9 @@ void loadFont(uint8_t font) {
        }
     uint8_t *p = &FONTS[font];
   */
-  int fontSize = sizeof(FONT) / 8;
+  //int fontSize = sizeof(FONTS[font]) / 8;
   for (int i = 0; i < fontSize; i++)
-    memcpy_P(&DIGIT[i], &FONT[i], 8);
+    memcpy_P(&DIGIT[i], &FONTS[font][i], 8);
 }
 
 /**
@@ -118,7 +118,7 @@ void setup() {
     mtx.clearDisplay(address);
   }
   // Load the font
-  loadFont(0);
+  loadFont(8);
 
   // Init and configure RTC
   if (! rtc.init()) {

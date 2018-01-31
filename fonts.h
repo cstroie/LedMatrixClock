@@ -26,9 +26,6 @@ const uint64_t* const FONTS[] = {FNTBBT, FNTBLD, FNTCLN, FNTCPM,
                                  FNTHEL, FNTLTW, FNTNCS, FNTRCT,
                                  FNTSKD, FNTSQR, FNTSTD,
                                 };
-uint64_t* FONT = FNTSKD;
-
-
-uint8_t fontSel = 0;
+uint8_t fontSize = 10;
 
 #endif /* FONTS_H */
