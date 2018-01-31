@@ -21,11 +21,18 @@
 
 #include <LedControl.h>
 #include "DS3231.h"
+#include <Timezone.h>    // https://github.com/JChristensen/Timezone
 
 // Pin definitions
 const int DIN_PIN = 11;
 const int CS_PIN  = 13;
 const int CLK_PIN = 12;
+
+// Eastern Europe Time Zone (Bucharest, Romania)
+TimeChangeRule DST = {"EEST", Last, Sun, Mar, 2, 120};
+TimeChangeRule STD = {"EST",  Last, Sun, Oct, 3, 180};
+Timezone TZ(DST, STD);
+
 
 // Load the fonts
 #include "fonts.h"
