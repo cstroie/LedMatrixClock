@@ -61,6 +61,21 @@ void loadFont(uint8_t font) {
 }
 
 /**
+  Get the day of the week using the Sakamoto's method, adapted to use the same
+  week day specifications as the DS3231
+
+  @param y year  >1752
+  @param m month 1..12
+  @param d day   1..31
+  @return day of the week, 1..7 (Sun..Sat)
+*/
+uint8_t dow(uint16_t y, uint8_t m, uint8_t d) {
+  static int t[] = {0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4};
+  y -= m < 3;
+  return ((y + y / 4 - y / 100 + y / 400 + t[m - 1] + d) % 7) + 1;
+}
+
+/**
   Show the time
 
   @param hh hours   0..23
