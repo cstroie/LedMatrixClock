@@ -75,9 +75,11 @@ uint8_t getDOW(uint16_t y, uint8_t m, uint8_t d) {
 }
 
 /**
-  Check if a specified date observes DST, according to the time changing rules in Romania
-  start: last Sunday in March
-  end:   last Sunday in October
+  Check if a specified date observes DST, according to
+  the time changing rules in Europe:
+
+    start: last Sunday in March
+    end:   last Sunday in October
 
   @param year  year  >1752
   @param month month 1..12
@@ -95,6 +97,42 @@ bool isDST(uint16_t year, uint8_t month, uint8_t day) {
          ((month == 10) and (day < dayEnd));
 }
 
+
+/**
+  Show the time specfied in unpacked BCD (4 bytes)
+*/
+void showTimeBCD(uint8_t* HHMM) {
+  // Keep previous values for hours and minutes
+  static uint8_t _hh = 255, _mm = 255;
+
+  // Skip if not changed
+  if ((HHMM[1] == _hh) and (HHMM[3] == _mm)) return;
+
+  // Display the columns (the matrices are transposed)
+  for (int i = 0; i < 8; i++) {
+    uint8_t row;
+    // First matrix
+    if (HHMM[1] != _hh) {
+      row = DIGIT[HHMM[0]][i] >> 3 | DIGIT[HHMM[1]][i] << 3;
+      mtx.setColumn(0, i, row);
+    }
+    // Second matrix
+    if ((HHMM[1] != _hh) or (HHMM[3] != _mm)) {
+      row = DIGIT[HHMM[1]][i] >> 5 | DIGIT[HHMM[2]][i] << 2;
+      mtx.setColumn(1, i, row);
+    }
+    // Third matrix
+    if (HHMM[3] != _mm) {
+      row = DIGIT[HHMM[2]][i] >> 6 | DIGIT[HHMM[3]][i];
+      mtx.setColumn(2, i, row);
+    }
+  }
+
+  // Keep the current values
+  _hh = HHMM[1];
+  _mm = HHMM[3];
+}
+
 /**
   Show the time
 
@@ -102,38 +140,11 @@ bool isDST(uint16_t year, uint8_t month, uint8_t day) {
   @param mm minutes 0..59
 */
 void showTime(uint8_t hh, uint8_t mm) {
-  // Keep previous values for hours and minutes
-  static uint8_t _hh = 255, _mm = 255;
+  // Convert hhmm to unpacked BCD, 4 digits
+  uint8_t HHMM[4] = {hh / 10, hh % 10, mm / 10, mm % 10};
 
-  // Skip if not changed
-  if ((hh == _hh) and (mm == _mm)) return;
-
-  // Decompose hhmm to 4 digits
-  uint8_t tm[4] = {hh / 10, hh % 10, mm / 10, mm % 10};
-
-  // Display the columns (the matrices are transposed)
-  for (int i = 0; i < 8; i++) {
-    uint8_t row;
-    // First matrix
-    if (hh != _hh) {
-      row = DIGIT[tm[0]][i] >> 3 | DIGIT[tm[1]][i] << 3;
-      mtx.setColumn(0, i, row);
-    }
-    // Second matrix
-    if ((hh != _hh) or (mm != _mm)) {
-      row = DIGIT[tm[1]][i] >> 5 | DIGIT[tm[2]][i] << 2;
-      mtx.setColumn(1, i, row);
-    }
-    // Third matrix
-    if (mm != _mm) {
-      row = DIGIT[tm[2]][i] >> 6 | DIGIT[tm[3]][i];
-      mtx.setColumn(2, i, row);
-    }
-  }
-
-  // Keep the current values
-  _hh = hh;
-  _mm = mm;
+  // Display the time in unpacked BCD
+  showTimeBCD(HHMM);
 }
 
 /**
@@ -176,6 +187,9 @@ void setup() {
   Main Arduino loop
 */
 void loop() {
-  rtc.readTime();
-  showTime(rtc.HH, rtc.MM);
+  //rtc.readTime();
+  //showTime(rtc.HH, rtc.MM);
+
+  rtc.readTimeBCD();
+  showTimeBCD(rtc.HHMM);
 }

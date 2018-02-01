@@ -21,18 +21,13 @@
 // Century
 #define CENTURY   20
 
-// Convert decimal to binary coded decimal
-#define DEC2BCD(val) ((uint8_t) ((val / 10 * 16) + (val % 10)))
-
-// Convert binary coded decimal to decimal
-#define BCD2DEC(val) ((uint8_t) ((val / 16 * 10) + (val % 16)))
-
 
 class DS3231 {
   public:
     DS3231();
     bool          init(uint8_t rtcAddr = I2C_RTC, bool twInit = true);
     bool          readTime(bool readDate = false);
+    bool          readTimeBCD();
     bool          writeDateTime(const uint8_t s, const uint8_t m, const uint8_t h, const uint8_t w, const uint8_t d, const uint8_t b, const uint8_t y);
     bool rtcOk = false;
     uint8_t SS; // second 0..59
@@ -43,6 +38,7 @@ class DS3231 {
     uint8_t mm; // month  0..12
     uint8_t yy; // year   0..99
     uint16_t yyyy;  // year, including millenium and century
+    uint8_t HHMM[4];
 
   private:
     uint8_t rtcAddr = I2C_RTC;
