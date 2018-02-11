@@ -148,6 +148,30 @@ void showTime(uint8_t hh, uint8_t mm) {
 }
 
 /**
+  Basic serial data parsing for setting time
+
+  See: http://www.instructables.com/id/Setting-the-DS1307-Real-Time-Clock-using-the-Seria/
+
+  Usage: "SET: YYYY/MM/DD HH:MM:SS"
+  ( sleep 2 && date "+SET: %Y/%m/%d %H:%M:%S" ) > /dev/ttyUSB0
+*/
+void parseTime() {
+  if (Serial.findUntil("SET:", "\r")) {
+    int y = Serial.parseInt();
+    int m = Serial.parseInt();
+    int d = Serial.parseInt();
+    int H = Serial.parseInt();
+    int M = Serial.parseInt();
+    int S = Serial.parseInt();
+    rtc.writeDateTime(S, M, H, getDOW(y, m, d), d, m, y % 100);
+    Serial.flush();
+  }
+  else {
+    Serial.println(F("Usage: SET: YYYY MM DD HH MM SS"));
+  }
+}
+
+/**
   Main Arduino setup function
 */
 void setup() {
@@ -189,6 +213,10 @@ void setup() {
 void loop() {
   //rtc.readTime();
   //showTime(rtc.HH, rtc.MM);
+
+  if (Serial.available()) {
+    parseTime();
+  }
 
   rtc.readTimeBCD();
   showTimeBCD(rtc.HHMM);
