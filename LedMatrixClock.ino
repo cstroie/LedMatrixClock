@@ -219,5 +219,5 @@ void loop() {
   }
 
   rtc.readTimeBCD();
-  showTimeBCD(rtc.HHMM);
+  showTimeBCD(rtc.R);
 }

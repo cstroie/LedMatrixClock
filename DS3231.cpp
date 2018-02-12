@@ -32,9 +32,9 @@ bool DS3231::init(uint8_t twRTC, bool twInit) {
   // Check the device is present
   Wire.beginTransmission(rtcAddr);
   rtcOk = Wire.endTransmission() == 0;
-  return rtcOk;
   // Set century
-  cc = CENTURY;
+  C = CENTURY * 100;
+  return rtcOk;
 }
 
 /**
@@ -54,24 +54,39 @@ bool DS3231::readTime(bool readDate) {
   else
     Wire.requestFrom(rtcAddr, 3);
 
-  SS = Wire.read();
-  SS = bcd2bin(SS);
-  MM = Wire.read();
-  MM = bcd2bin(MM);
-  HH = Wire.read() & 0x3F;
-  HH = bcd2bin(HH);
+  // Seconds
+  S = Wire.read();
+  S = bcd2bin(S);
+  // Minutes
+  M = Wire.read();
+  M = bcd2bin(M);
+  // Hours
+  H = Wire.read();
+  // Check if 12 hours and PM and add 0x12 (BCD)
+  if ((H & (1 << 6)) and (H & (1 << 5)))
+    H = (H & 0x1F) + 0x12;
+  H = bcd2bin(H & 0x3F);
+  I = H;
+  P = H >= 12;
+  if (P) I -= 12;
+  // Date
   if (readDate) {
-    dw = Wire.read() & 0x07;
-    dw = bcd2bin(dw);
-    dd = Wire.read();
-    dd = bcd2bin(dd);
-    mm = Wire.read();
-    if (mm & 0x80) cy = 1;
-    mm &= 0x1F;
-    mm = bcd2bin(mm);
-    yy = Wire.read();
-    yy = bcd2bin(yy);
-    yyyy = 100 * (cc + cy) + yy;
+    // Century
+    uint16_t c = C;
+    // Day of week, 1 is Monday
+    u = Wire.read();
+    u = bcd2bin(u & 0x07);
+    // Day
+    d = Wire.read();
+    d = bcd2bin(d);
+    // Month and century
+    m = Wire.read();
+    if (m & (1 << 7)) c += 100;
+    m = bcd2bin(m & 0x1F);
+    // Year, short and long format
+    y = Wire.read();
+    y = bcd2bin(y);
+    Y = c + y;
   }
   return true;
 }
@@ -93,11 +108,11 @@ bool DS3231::readTimeBCD() {
 
   uint8_t x;
   x = Wire.read();
-  HHMM[2] = x / 16; (x & 0xF0) >> 4;
-  HHMM[3] = x % 16; (x & 0x0F);
+  R[2] = x / 16; (x & 0xF0) >> 4;
+  R[3] = x % 16; (x & 0x0F);
   x = Wire.read() & 0x3F;
-  HHMM[0] = x / 16; (x & 0xF0) >> 4;
-  HHMM[1] = x % 16; (x & 0x0F);
+  R[0] = x / 16; (x & 0xF0) >> 4;
+  R[1] = x % 16; (x & 0x0F);
   return true;
 }
 
