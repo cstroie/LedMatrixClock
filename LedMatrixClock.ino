@@ -60,43 +60,6 @@ void loadFont(uint8_t font) {
     memcpy_P(&DIGIT[i], &FONTS[font][i], 8);
 }
 
-/**
-  Get the day of the week using the Tomohiko Sakamoto's method
-
-  @param y year  >1752
-  @param m month 1..12
-  @param d day   1..31
-  @return day of the week, 0..6 (Sun..Sat)
-*/
-uint8_t getDOW(uint16_t y, uint8_t m, uint8_t d) {
-  uint8_t t[] = {0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4};
-  y -= m < 3;
-  return (y + y / 4 - y / 100 + y / 400 + t[m - 1] + d) % 7;
-}
-
-/**
-  Check if a specified date observes DST, according to
-  the time changing rules in Europe:
-
-    start: last Sunday in March
-    end:   last Sunday in October
-
-  @param year  year  >1752
-  @param month month 1..12
-  @param day   day   1..31
-  @return bool DST yes or no
-*/
-bool isDST(uint16_t year, uint8_t month, uint8_t day) {
-  // Get the last Sunday in March
-  uint8_t dayBegin = 31 - getDOW(year, 3, 31);
-  // Get the last Sunday on October
-  uint8_t dayEnd = 31 - getDOW(year, 10, 31);
-  // Compute DST
-  return ((month > 3) and (month < 10)) or
-         ((month == 3) and (day >= dayBegin)) or
-         ((month == 10) and (day < dayEnd));
-}
-
 
 /**
   Show the time specfied in unpacked BCD (4 bytes)
@@ -150,25 +113,22 @@ void showTime(uint8_t hh, uint8_t mm) {
 /**
   Basic serial data parsing for setting time
 
-  See: http://www.instructables.com/id/Setting-the-DS1307-Real-Time-Clock-using-the-Seria/
-
-  Usage: "SET: YYYY/MM/DD HH:MM:SS"
+  Usage: "SET: YYYY/MM/DD HH:MM:SS" or, using date(1),
   ( sleep 2 && date "+SET: %Y/%m/%d %H:%M:%S" ) > /dev/ttyUSB0
 */
 void parseTime() {
   if (Serial.findUntil("SET:", "\r")) {
-    int y = Serial.parseInt();
-    int m = Serial.parseInt();
-    int d = Serial.parseInt();
-    int H = Serial.parseInt();
-    int M = Serial.parseInt();
-    int S = Serial.parseInt();
-    rtc.writeDateTime(S, M, H, getDOW(y, m, d), d, m, y % 100);
+    uint16_t  year  = Serial.parseInt();
+    uint8_t   month = Serial.parseInt();
+    uint8_t   day   = Serial.parseInt();
+    uint8_t   hour  = Serial.parseInt();
+    uint8_t   min   = Serial.parseInt();
+    uint8_t   sec   = Serial.parseInt();
+    rtc.writeDateTime(sec, min, hour, day, month, year);
     Serial.flush();
   }
-  else {
-    Serial.println(F("Usage: SET: YYYY MM DD HH MM SS"));
-  }
+  else
+    Serial.println(F("Usage: SET: YYYY/MM/DD HH:MM:SS"));
 }
 
 /**
@@ -205,6 +165,10 @@ void setup() {
       // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
     }
   */
+
+  // Display the temperature
+  Serial.print("T: ");
+  Serial.println((int)rtc.readTemperature());
 }
 
 /**

@@ -28,15 +28,21 @@ class DS3231 {
     bool      init(uint8_t rtcAddr = I2C_RTC, bool twInit = true);
     bool      readTime(bool readDate = false);
     bool      readTimeBCD();
-    bool      writeDateTime(const uint8_t s, const uint8_t m, const uint8_t h, const uint8_t w, const uint8_t d, const uint8_t b, const uint8_t y);
-    bool      rtcOk = false;
+    int8_t    readTemperature();
+    bool      writeDateTime(uint8_t S, uint8_t M, uint8_t H, uint8_t d, uint8_t m, uint16_t Y);
+    bool      resetSeconds();
+    bool      incMinutes();
+    bool      incHours();
+
+    uint8_t   getDOW(uint16_t year, uint8_t month, uint8_t day);
+    bool      isDST(uint16_t year, uint8_t month, uint8_t day);
 
     // The names of the variables are inspired by man date(1)
     uint8_t   S; // second 00..59
     uint8_t   M; // minute 00..59
     uint8_t   H; // hour   00..24
     uint8_t   I; // hour    1..12
-    bool      P; // AM/PM
+    bool      P; // AM/PM, true if PM
     uint8_t   z; // time zone (hours only)
     uint8_t   u; // DoW     1..7, 1 is Monday
     uint8_t   d; // day    00..31
@@ -45,6 +51,9 @@ class DS3231 {
     uint16_t  C; // century, e.g. 1900 or 2000
     uint16_t  Y; // year, including millenium and century
     uint8_t   R[4]; // 24-hour hour and minute, unpacked BCD
+
+    // Flags
+    bool      rtcOk = false;
 
   private:
     uint8_t   rtcAddr = I2C_RTC;

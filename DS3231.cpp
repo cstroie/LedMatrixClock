@@ -49,10 +49,9 @@ bool DS3231::readTime(bool readDate) {
   if (Wire.endTransmission() != 0)
     return false;
   // Request 3 or 7 bytes of data starting from 0x00
-  if (readDate)
-    Wire.requestFrom(rtcAddr, 7);
-  else
-    Wire.requestFrom(rtcAddr, 3);
+  uint8_t len = 3;
+  if (readDate) len = 7;
+  Wire.requestFrom(rtcAddr, len);
 
   // Seconds
   S = Wire.read();
@@ -66,9 +65,9 @@ bool DS3231::readTime(bool readDate) {
   if ((H & (1 << 6)) and (H & (1 << 5)))
     H = (H & 0x1F) + 0x12;
   H = bcd2bin(H & 0x3F);
-  I = H;
   P = H >= 12;
-  if (P) I -= 12;
+  if (H > 12) I = H - 12;
+  else        I = H;
   // Date
   if (readDate) {
     // Century
@@ -104,7 +103,7 @@ bool DS3231::readTimeBCD() {
   if (Wire.endTransmission() != 0)
     return false;
   // Request 3 bytes of data starting from 0x01
-  Wire.requestFrom(rtcAddr, 3);
+  Wire.requestFrom(rtcAddr, (uint8_t)3);
 
   uint8_t x;
   x = Wire.read();
@@ -117,28 +116,135 @@ bool DS3231::readTimeBCD() {
 }
 
 /**
+  Read the current temperature from the RTC
+
+  @return integer temperature
+*/
+int8_t DS3231::readTemperature() {
+  // Set DS3231 register pointer to 0x11
+  Wire.beginTransmission(rtcAddr);
+  Wire.write(0x11);
+  if (Wire.endTransmission() != 0)
+    return 0x80;
+  // Request one byte
+  Wire.requestFrom(rtcAddr, (uint8_t)1);
+  return Wire.read();
+}
+
+
+
+/**
    Sets RTC datetime data
 
-   @param uint8_t second second to set to HW RTC
-   @param uint8_t minute minute to set to HW RTC
-   @param uint8_t hour hour to set to HW RTC
-   @param uint8_t dayOfWeek day of week to set to HW RTC
-   @param uint8_t dayOfMonth day of month to set to HW RTC
-   @param uint8_t month month to set to HW RTC
-   @param uint8_t year year to set to HW RTC
+   @param uint8_t S second to set to HW RTC
+   @param uint8_t M minute to set to HW RTC
+   @param uint8_t H hour to set to HW RTC
+   @param uint8_t d day of month to set to HW RTC
+   @param uint8_t m month to set to HW RTC
+   @param uint8_t Y year to set to HW RTC
 */
-bool DS3231::writeDateTime(const uint8_t s, const uint8_t m, const uint8_t h,
-                           const uint8_t w, const uint8_t d, const uint8_t b, const uint8_t y) {
+bool DS3231::writeDateTime(uint8_t S, uint8_t M, uint8_t H,
+                           uint8_t d, uint8_t m, uint16_t Y) {
+  // Compute the day of the week, format 1..7, Monday based
+  uint8_t u = getDOW(Y, m, d);
+  if (u == 0) u = 7;
+  // Century flag
+  uint8_t c = 0x00;
   // Set DS3231 register pointer to 0x00
   Wire.beginTransmission(rtcAddr);
   Wire.write(0);
-  Wire.write(bin2bcd(s)); // set seconds
-  Wire.write(bin2bcd(m)); // set minutes
-  Wire.write(bin2bcd(h)); // set hours
-  Wire.write(bin2bcd(w)); // set day of week (1=Sunday, 7=Saturday)
-  Wire.write(bin2bcd(d)); // set day (1 to 31)
-  Wire.write(bin2bcd(b)); // set month
-  Wire.write(bin2bcd(y)); // set year (0 to 99)
+  Wire.write(bin2bcd(S % 60));        // Seconds, 00..59
+  Wire.write(bin2bcd(M % 60));        // Minutes, 00..59
+  Wire.write(bin2bcd(H % 24) & 0x3F); // Hours, 00..23
+  Wire.write(u);                      // Day of week, Mon first
+  Wire.write(bin2bcd(d % 31) & 0x3F); // Day in month, 01..31
+  if (Y > (C + 99)) c = 1 << 7;
+  Wire.write(bin2bcd(m % 12) + c);    // Month, 01..12, and century flag
+  Wire.write(bin2bcd(Y % 100));       // Year, 00..99
   return (Wire.endTransmission() == 0);
 }
+
+/**
+   Reset RTC senconds to zero
+*/
+bool DS3231::resetSeconds() {
+  // Set DS3231 register pointer to 0x00
+  S = 0;
+  Wire.beginTransmission(rtcAddr);
+  Wire.write(0);
+  Wire.write(S);
+  return (Wire.endTransmission() == 0);
+}
+
+/**
+   Increment the minutes
+*/
+bool DS3231::incMinutes() {
+  // Read the time
+  readTime();
+  // Increment the minutes
+  M = (M + 1) % 60;
+  // Set DS3231 register pointer to 0x01
+  Wire.beginTransmission(rtcAddr);
+  Wire.write(1);
+  Wire.write(bin2bcd(M));
+  return (Wire.endTransmission() == 0);
+}
+
+/**
+   Increment the hours
+*/
+bool DS3231::incHours() {
+  // Read the time
+  readTime();
+  // Increment the hours
+  H = (H + 1) % 24;
+  P = H >= 12;
+  if (H > 12) I = H - 12;
+  else        I = H;
+  // Set DS3231 register pointer to 0x02
+  Wire.beginTransmission(rtcAddr);
+  Wire.write(2);
+  Wire.write(bin2bcd(H & 0x3F));
+  return (Wire.endTransmission() == 0);
+}
+
+/**
+  Determine the day of the week using the Tomohiko Sakamoto's method
+
+  @param y year  >1752
+  @param m month 1..12
+  @param d day   1..31
+  @return day of the week, 0..6 (Sun..Sat)
+*/
+uint8_t DS3231::getDOW(uint16_t year, uint8_t month, uint8_t day) {
+  uint8_t t[] = {0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4};
+  year -= month < 3;
+  return (year + year / 4 - year / 100 + year / 400 + t[month - 1] + day) % 7;
+}
+
+/**
+  Check if a specified date observes DST, according to
+  the time changing rules in Europe:
+
+    start: last Sunday in March
+    end:   last Sunday in October
+
+  @param year  year  >1752
+  @param month month 1..12
+  @param day   day   1..31
+  @return bool DST yes or no
+*/
+bool DS3231::isDST(uint16_t year, uint8_t month, uint8_t day) {
+  // Get the last Sunday in March
+  uint8_t dayBegin = 31 - getDOW(year, 3, 31);
+  // Get the last Sunday on October
+  uint8_t dayEnd = 31 - getDOW(year, 10, 31);
+  // Compute DST
+  return ((month > 3) and (month < 10)) or
+         ((month == 3) and (day >= dayBegin)) or
+         ((month == 10) and (day < dayEnd));
+}
+
+
 
