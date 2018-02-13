@@ -35,18 +35,20 @@ bool DS3231::init(uint8_t twRTC, bool twInit) {
   // Set century
   C = CENTURY * 100;
 
-  // Debug: show all registers in DS3231
-  Wire.beginTransmission(rtcAddr);
-  Wire.write(0x00);
-  Wire.endTransmission();
-  // Request all bytes of data starting from 0x01
-  Wire.requestFrom(rtcAddr, (uint8_t)0x12);
-  char buf[16];
-  for (uint8_t i = 0x00; i <= 0x12; i++) {
-    uint8_t x = Wire.read();
-    sprintf(buf, "%02x: %02x", i, x);
-    Serial.println(buf);
-  }
+  /*
+    // Debug: show all registers in DS3231
+    Wire.beginTransmission(rtcAddr);
+    Wire.write(0x00);
+    Wire.endTransmission();
+    // Request all bytes of data starting from 0x01
+    Wire.requestFrom(rtcAddr, (uint8_t)0x12);
+    char buf[16];
+    for (uint8_t i = 0x00; i <= 0x12; i++) {
+      uint8_t x = Wire.read();
+      sprintf(buf, "%02x: %02x", i, x);
+      Serial.println(buf);
+    }
+  */
 
   // Set Alarm 2 to trigger every minute
   Wire.beginTransmission(rtcAddr);

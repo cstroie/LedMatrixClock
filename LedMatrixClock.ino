@@ -19,6 +19,9 @@
   LedMatrixClock.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+// EEPROM
+#include <EEPROM.h>
+
 #include <LedControl.h>
 #include "DS3231.h"
 
@@ -37,10 +40,86 @@ DS3231 rtc;
 #define MATRICES 3
 LedControl mtx = LedControl(DIN_PIN, CLK_PIN, CS_PIN, MATRICES);
 
+struct CONFIG {
+  uint8_t font;
+  uint8_t brightness;
+  uint8_t crc;
+};
+CONFIG eeConfig;
+uint16_t eeAddress = 400;
+
 // The currently selected font
 uint8_t DIGIT[16][8] = {0};
 // Display brightness
 uint8_t mtxBrightness = 1;
+
+// Show time independently from minutes changing
+bool mtxShowTime = true;
+
+/**
+  CRC8 computing
+
+  @param crc partial CRC
+  @param data new data
+  @return updated CRC
+*/
+uint8_t crc8_update(uint8_t crc, uint8_t data) {
+  uint8_t updated = crc ^ data;
+  for (uint8_t i = 0; i < 8; ++i) {
+    if ((updated & 0x80 ) != 0) {
+      updated <<= 1;
+      updated ^= 0x07;
+    }
+    else {
+      updated <<= 1;
+    }
+  }
+  return updated;
+}
+
+/**
+  Write the configuration to EEPROM, along with CRC8
+
+  @param tm the time value to store
+*/
+void eeConfigWrite() {
+  // Temporary config structure
+  CONFIG cfg;
+  // Read the data from EEPROM
+  EEPROM.get(eeAddress, cfg);
+  // Compute CRC8 checksum
+  uint8_t crc = 0;
+  crc = crc8_update(crc, eeConfig.font);
+  crc = crc8_update(crc, eeConfig.brightness);
+  eeConfig.crc = crc;
+  // Write the data
+  EEPROM.put(eeAddress, eeConfig);
+}
+
+/**
+  Read the configuration from EEPROM, along with CRC8 and verify
+*/
+bool eeConfigRead() {
+  CONFIG cfg;
+  // Read the data
+  EEPROM.get(eeAddress, cfg);
+  // Compute CRC8 checksum
+  uint8_t crc = 0;
+  crc = crc8_update(crc, cfg.font);
+  crc = crc8_update(crc, cfg.brightness);
+  // Verify
+  if (cfg.crc == crc) {
+    eeConfig.font = cfg.font;
+    eeConfig.brightness = cfg.brightness;
+    eeConfig.crc = cfg.crc;
+    return true;
+  }
+  else {
+    eeConfig.font = 8;
+    eeConfig.brightness = 1;
+    return false;
+  }
+}
 
 /**
   Load the specified font into RAM
@@ -64,28 +143,28 @@ void loadFont(uint8_t font) {
 /**
   Show the time specfied in unpacked BCD (4 bytes)
 */
-void showTimeBCD(uint8_t* HHMM) {
+void showTimeBCD(uint8_t* HHMM, bool force = false) {
   // Keep previous values for hours and minutes
   static uint8_t _hh = 255, _mm = 255;
 
   // Skip if not changed
-  if ((HHMM[1] == _hh) and (HHMM[3] == _mm)) return;
+  if (not force and (HHMM[1] == _hh) and (HHMM[3] == _mm)) return;
 
   // Display the columns (the matrices are transposed)
   for (int i = 0; i < 8; i++) {
     uint8_t row;
     // First matrix
-    if (HHMM[1] != _hh) {
+    if ((HHMM[1] != _hh) or force) {
       row = DIGIT[HHMM[0]][i] >> 3 | DIGIT[HHMM[1]][i] << 3;
       mtx.setColumn(0, i, row);
     }
     // Second matrix
-    if ((HHMM[1] != _hh) or (HHMM[3] != _mm)) {
+    if ((HHMM[1] != _hh) or (HHMM[3] != _mm) or force) {
       row = DIGIT[HHMM[1]][i] >> 5 | DIGIT[HHMM[2]][i] << 2;
       mtx.setColumn(1, i, row);
     }
     // Third matrix
-    if (HHMM[3] != _mm) {
+    if ((HHMM[3] != _mm) or force) {
       row = DIGIT[HHMM[2]][i] >> 6 | DIGIT[HHMM[3]][i];
       mtx.setColumn(2, i, row);
     }
@@ -117,14 +196,38 @@ void showTime(uint8_t hh, uint8_t mm) {
   ( sleep 2 && date "+SET: %Y/%m/%d %H:%M:%S" ) > /dev/ttyUSB0
 */
 void parseTime() {
-  if (Serial.findUntil("SET:", "\r")) {
-    uint16_t  year  = Serial.parseInt();
-    uint8_t   month = Serial.parseInt();
-    uint8_t   day   = Serial.parseInt();
-    uint8_t   hour  = Serial.parseInt();
-    uint8_t   min   = Serial.parseInt();
-    uint8_t   sec   = Serial.parseInt();
-    rtc.writeDateTime(sec, min, hour, day, month, year);
+  if (Serial.findUntil("SET ", "\r")) {
+    char buf[16] = "";
+    if (Serial.readBytesUntil(' ', buf, 16)) {
+      if (strcmp(buf, "TIME") == 0) {
+        uint16_t  year  = Serial.parseInt();
+        uint8_t   month = Serial.parseInt();
+        uint8_t   day   = Serial.parseInt();
+        uint8_t   hour  = Serial.parseInt();
+        uint8_t   min   = Serial.parseInt();
+        uint8_t   sec   = Serial.parseInt();
+        rtc.writeDateTime(sec, min, hour, day, month, year);
+      }
+      else if (strcmp(buf, "FONT") == 0) {
+        uint8_t   font = Serial.parseInt();
+        font %= 11;
+        loadFont(font);
+        eeConfig.font = font;
+        eeConfigWrite();
+        Serial.print(F("Setting font to ")); Serial.println(font);
+      }
+      else if (strcmp(buf, "BRGHT") == 0) {
+        uint8_t   brght = Serial.parseInt();
+        brght %= 16;
+        for (int address = 0; address < mtx.getDeviceCount(); address++)
+          // Set the brightness
+          mtx.setIntensity(address, brght);
+        eeConfig.brightness = brght;
+        eeConfigWrite();
+        Serial.print(F("Setting brightness to ")); Serial.println(brght);
+      }
+    }
+    mtxShowTime = true;
     Serial.flush();
   }
   else
@@ -138,17 +241,21 @@ void setup() {
   // Init the serial com
   Serial.begin(9600);
 
-  // Init all led matrices in a loop
+  // Read the configuration from EEPROM
+  eeConfigRead();
+
+  // Init all led matrices
   for (int address = 0; address < mtx.getDeviceCount(); address++) {
     // Set the brightness
-    mtx.setIntensity(address, mtxBrightness);
+    mtx.setIntensity(address, eeConfig.brightness);
     // Clear the display
     mtx.clearDisplay(address);
     // The MAX72XX is in power-saving mode on startup
     mtx.shutdown(address, false);
   }
+
   // Load the font
-  loadFont(8);
+  loadFont(eeConfig.font);
 
   // Init and configure RTC
   if (! rtc.init()) {
@@ -181,8 +288,9 @@ void loop() {
   }
 
   // Check the alarms, the Alarm 2 triggers once per minute
-  if (rtc.checkAlarms() & 0x02) {
+  if ((rtc.checkAlarms() & 0x02) or mtxShowTime) {
     rtc.readTimeBCD();
-    showTimeBCD(rtc.R);
+    showTimeBCD(rtc.R, mtxShowTime);
+    mtxShowTime = false;
   }
 }
