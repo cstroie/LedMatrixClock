@@ -48,15 +48,30 @@ bool DS3231::init(uint8_t twRTC, bool twInit) {
     Serial.println(buf);
   }
 
-  // Set alaram 2 to trigger every minute
+  // Set Alarm 2 to trigger every minute
   Wire.beginTransmission(rtcAddr);
+  // Alarm 2 minutes register
   Wire.write(0x0B);
   Wire.write(0x80); // 0x0B
   Wire.write(0x80); // 0x0C
   Wire.write(0x80); // 0x0D
   Wire.endTransmission();
 
-
+  // Check the control register
+  Wire.beginTransmission(rtcAddr);
+  // Control Register
+  Wire.write(0x0E);
+  Wire.endTransmission();
+  // Request one byte
+  Wire.requestFrom(rtcAddr, (uint8_t)1);
+  uint8_t x = Wire.read();
+  // Enable Alarm 2 INT
+  Wire.beginTransmission(rtcAddr);
+  // Control Register
+  Wire.write(0x0E);
+  // Set INTCN and A2IE bits
+  Wire.write(x | 0x06);
+  Wire.endTransmission();
 
   return rtcOk;
 }
@@ -67,9 +82,9 @@ bool DS3231::init(uint8_t twRTC, bool twInit) {
   @return true if the function succeeded
 */
 bool DS3231::readTime(bool readDate) {
-  // Set DS3231 register pointer to 0x00
   Wire.beginTransmission(rtcAddr);
-  Wire.write(0);
+  // Seconds register
+  Wire.write(0x00);
   if (Wire.endTransmission() != 0)
     return false;
   // Request 3 or 7 bytes of data starting from 0x00
@@ -121,18 +136,20 @@ bool DS3231::readTime(bool readDate) {
   @return true if the function succeeded
 */
 bool DS3231::readTimeBCD() {
-  // Set DS3231 register pointer to 0x01
   Wire.beginTransmission(rtcAddr);
-  Wire.write(1);
+  // Minute register
+  Wire.write(0x01);
   if (Wire.endTransmission() != 0)
     return false;
   // Request 3 bytes of data starting from 0x01
   Wire.requestFrom(rtcAddr, (uint8_t)3);
 
   uint8_t x;
+  // Minutes
   x = Wire.read();
   R[2] = x / 16; (x & 0xF0) >> 4;
   R[3] = x % 16; (x & 0x0F);
+  // Hours
   x = Wire.read() & 0x3F;
   R[0] = x / 16; (x & 0xF0) >> 4;
   R[1] = x % 16; (x & 0x0F);
@@ -145,8 +162,8 @@ bool DS3231::readTimeBCD() {
   @return integer temperature
 */
 int8_t DS3231::readTemperature() {
-  // Set DS3231 register pointer to 0x11
   Wire.beginTransmission(rtcAddr);
+  // Temperature register
   Wire.write(0x11);
   if (Wire.endTransmission() != 0)
     return 0x80;
@@ -161,14 +178,15 @@ int8_t DS3231::readTemperature() {
   @return bool bit status
 */
 bool DS3231::lostPower() {
-  // Set DS3231 register pointer to 0x0F
   Wire.beginTransmission(rtcAddr);
+  // Status Register
   Wire.write(0x0F);
   if (Wire.endTransmission() != 0)
     return true;
   // Request one byte
   Wire.requestFrom(rtcAddr, (uint8_t)1);
   uint8_t x = Wire.read();
+  // Return the MSB
   return x & 0x80;
 }
 
@@ -178,8 +196,8 @@ bool DS3231::lostPower() {
   @return triggered alarm
 */
 uint8_t DS3231::checkAlarms() {
-  // Set DS3231 register pointer to 0x0F
   Wire.beginTransmission(rtcAddr);
+  // Status Register
   Wire.write(0x0F);
   if (Wire.endTransmission() != 0)
     return false;
@@ -190,7 +208,9 @@ uint8_t DS3231::checkAlarms() {
   if (result) {
     // Clear the alarms
     Wire.beginTransmission(rtcAddr);
+    // Status Register
     Wire.write(0x0F);
+    // Clear the two less significant bits
     Wire.write(x & 0xFC);
     Wire.endTransmission();
   }
@@ -228,7 +248,6 @@ bool DS3231::writeDateTime(uint8_t S, uint8_t M, uint8_t H,
   Wire.endTransmission();
 
   // Clear the status flag
-  // Set DS3231 register pointer to 0x0F
   Wire.beginTransmission(rtcAddr);
   Wire.write(0x0F);
   Wire.endTransmission();
