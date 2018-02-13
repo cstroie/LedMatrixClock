@@ -140,12 +140,12 @@ void setup() {
 
   // Init all led matrices in a loop
   for (int address = 0; address < mtx.getDeviceCount(); address++) {
-    // The MAX72XX is in power-saving mode on startup
-    mtx.shutdown(address, false);
     // Set the brightness
     mtx.setIntensity(address, mtxBrightness);
     // Clear the display
     mtx.clearDisplay(address);
+    // The MAX72XX is in power-saving mode on startup
+    mtx.shutdown(address, false);
   }
   // Load the font
   loadFont(8);
@@ -155,16 +155,14 @@ void setup() {
     Serial.println(F("DS3231 RTC missing"));
   }
 
-  /*
-    if (rtc.lostPower()) {
-      Serial.println(F("RTC lost power, lets set the time!"));
-      // The next line sets the RTC to the date & time this sketch was compiled
-      //rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-      // This line sets the RTC with an explicit date & time, for example to set
-      // January 21, 2014 at 3am you would call:
-      // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
-    }
-  */
+  if (rtc.lostPower()) {
+    Serial.println(F("RTC lost power, lets set the time!"));
+    // The next line sets the RTC to the date & time this sketch was compiled
+    //rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    // This line sets the RTC with an explicit date & time, for example to set
+    // January 21, 2014 at 3am you would call:
+    // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+  }
 
   // Display the temperature
   Serial.print("T: ");

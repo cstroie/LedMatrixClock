@@ -34,6 +34,30 @@ bool DS3231::init(uint8_t twRTC, bool twInit) {
   rtcOk = Wire.endTransmission() == 0;
   // Set century
   C = CENTURY * 100;
+
+  // Debug: show all registers in DS3231
+  Wire.beginTransmission(rtcAddr);
+  Wire.write(0x00);
+  Wire.endTransmission();
+  // Request all bytes of data starting from 0x01
+  Wire.requestFrom(rtcAddr, (uint8_t)0x12);
+  char buf[16];
+  for (uint8_t i = 0x00; i <= 0x12; i++) {
+    uint8_t x = Wire.read();
+    sprintf(buf, "%02x: %02x", i, x);
+    Serial.println(buf);
+  }
+
+  // Set alaram 2 to trigger every minute
+  Wire.beginTransmission(rtcAddr);
+  Wire.write(0x0B);
+  Wire.write(0x80); // 0x0B
+  Wire.write(0x80); // 0x0C
+  Wire.write(0x80); // 0x0D
+  Wire.endTransmission();
+
+
+
   return rtcOk;
 }
 
@@ -131,10 +155,25 @@ int8_t DS3231::readTemperature() {
   return Wire.read();
 }
 
+/**
+  Read the status bit of the RTC
 
+  @return bool bit status
+*/
+bool DS3231::lostPower() {
+  // Set DS3231 register pointer to 0x0F
+  Wire.beginTransmission(rtcAddr);
+  Wire.write(0x0F);
+  if (Wire.endTransmission() != 0)
+    return true;
+  // Request one byte
+  Wire.requestFrom(rtcAddr, (uint8_t)1);
+  uint8_t x = Wire.read();
+  return x & 0x80;
+}
 
 /**
-   Sets RTC datetime data
+   Set RTC date and time and clear the status flag
 
    @param uint8_t S second to set to HW RTC
    @param uint8_t M minute to set to HW RTC
@@ -152,7 +191,7 @@ bool DS3231::writeDateTime(uint8_t S, uint8_t M, uint8_t H,
   uint8_t c = 0x00;
   // Set DS3231 register pointer to 0x00
   Wire.beginTransmission(rtcAddr);
-  Wire.write(0);
+  Wire.write(0x00);
   Wire.write(bin2bcd(S % 60));        // Seconds, 00..59
   Wire.write(bin2bcd(M % 60));        // Minutes, 00..59
   Wire.write(bin2bcd(H % 24) & 0x3F); // Hours, 00..23
@@ -161,7 +200,21 @@ bool DS3231::writeDateTime(uint8_t S, uint8_t M, uint8_t H,
   if (Y > (C + 99)) c = 1 << 7;
   Wire.write(bin2bcd(m % 12) + c);    // Month, 01..12, and century flag
   Wire.write(bin2bcd(Y % 100));       // Year, 00..99
-  return (Wire.endTransmission() == 0);
+  Wire.endTransmission();
+
+  // Clear the status flag
+  // Set DS3231 register pointer to 0x0F
+  Wire.beginTransmission(rtcAddr);
+  Wire.write(0x0F);
+  Wire.endTransmission();
+  // Request one byte
+  Wire.requestFrom(rtcAddr, (uint8_t)1);
+  uint8_t x = Wire.read();
+  // Clear the status bit
+  Wire.beginTransmission(rtcAddr);
+  Wire.write(0x0F);
+  Wire.write(x & 0x7F);
+  Wire.endTransmission();
 }
 
 /**
@@ -171,7 +224,7 @@ bool DS3231::resetSeconds() {
   // Set DS3231 register pointer to 0x00
   S = 0;
   Wire.beginTransmission(rtcAddr);
-  Wire.write(0);
+  Wire.write(0x00);
   Wire.write(S);
   return (Wire.endTransmission() == 0);
 }
@@ -186,7 +239,7 @@ bool DS3231::incMinutes() {
   M = (M + 1) % 60;
   // Set DS3231 register pointer to 0x01
   Wire.beginTransmission(rtcAddr);
-  Wire.write(1);
+  Wire.write(0x01);
   Wire.write(bin2bcd(M));
   return (Wire.endTransmission() == 0);
 }
@@ -204,7 +257,7 @@ bool DS3231::incHours() {
   else        I = H;
   // Set DS3231 register pointer to 0x02
   Wire.beginTransmission(rtcAddr);
-  Wire.write(2);
+  Wire.write(0x02);
   Wire.write(bin2bcd(H & 0x3F));
   return (Wire.endTransmission() == 0);
 }

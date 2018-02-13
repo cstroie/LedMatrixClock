@@ -29,6 +29,7 @@ class DS3231 {
     bool      readTime(bool readDate = false);
     bool      readTimeBCD();
     int8_t    readTemperature();
+    bool      lostPower();
     bool      writeDateTime(uint8_t S, uint8_t M, uint8_t H, uint8_t d, uint8_t m, uint16_t Y);
     bool      resetSeconds();
     bool      incMinutes();
