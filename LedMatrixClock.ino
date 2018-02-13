@@ -180,6 +180,9 @@ void loop() {
     parseTime();
   }
 
-  rtc.readTimeBCD();
-  showTimeBCD(rtc.R);
+  // Check the alarms, the Alarm 2 triggers once per minute
+  if (rtc.checkAlarms() & 0x02) {
+    rtc.readTimeBCD();
+    showTimeBCD(rtc.R);
+  }
 }

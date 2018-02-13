@@ -173,6 +173,31 @@ bool DS3231::lostPower() {
 }
 
 /**
+  Check and clear the alarms
+
+  @return triggered alarm
+*/
+uint8_t DS3231::checkAlarms() {
+  // Set DS3231 register pointer to 0x0F
+  Wire.beginTransmission(rtcAddr);
+  Wire.write(0x0F);
+  if (Wire.endTransmission() != 0)
+    return false;
+  // Request one byte
+  Wire.requestFrom(rtcAddr, (uint8_t)1);
+  uint8_t x = Wire.read();
+  uint8_t result = x & 0x03;
+  if (result) {
+    // Clear the alarms
+    Wire.beginTransmission(rtcAddr);
+    Wire.write(0x0F);
+    Wire.write(x & 0xFC);
+    Wire.endTransmission();
+  }
+  return result;
+}
+
+/**
    Set RTC date and time and clear the status flag
 
    @param uint8_t S second to set to HW RTC
