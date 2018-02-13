@@ -192,8 +192,8 @@ void showTime(uint8_t hh, uint8_t mm) {
 /**
   Basic serial data parsing for setting time
 
-  Usage: "SET: YYYY/MM/DD HH:MM:SS" or, using date(1),
-  ( sleep 2 && date "+SET: %Y/%m/%d %H:%M:%S" ) > /dev/ttyUSB0
+  Usage: "SET TIME YYYY/MM/DD HH:MM:SS" or, using date(1),
+  ( sleep 2 && date "+SET TIME %Y/%m/%d %H:%M:%S" ) > /dev/ttyUSB0
 */
 void parseTime() {
   if (Serial.findUntil("SET ", "\r")) {
@@ -231,7 +231,7 @@ void parseTime() {
     Serial.flush();
   }
   else
-    Serial.println(F("Usage: SET: YYYY/MM/DD HH:MM:SS"));
+    Serial.println(F("Usage: SET TIME YYYY/MM/DD HH:MM:SS"));
 }
 
 /**
