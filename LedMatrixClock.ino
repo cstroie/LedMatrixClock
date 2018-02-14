@@ -51,9 +51,9 @@ struct cfgEE_t {
   uint8_t crc8; // CRC8
 };
 // The global configuration structure
-cfgEE_t   cfgData;
+struct cfgEE_t  cfgData;
 // EEPROM address to store the configuration to
-uint16_t  cfgEEAddress = 0x0180;
+uint16_t        cfgEEAddress = 0x0180;
 
 // Show time independently of minutes changing
 bool mtxShowTime = true;
@@ -116,7 +116,7 @@ bool cfgCompare(struct cfgEE_t cfg1, struct cfgEE_t cfg2) {
 */
 void cfgWriteEE() {
   // Temporary configuration structure
-  cfgEE_t cfgTemp;
+  struct cfgEE_t cfgTemp;
   // Read the data from EEPROM
   EEPROM.get(cfgEEAddress, cfgTemp);
   // Compute the CRC8 checksum of the read data
@@ -144,14 +144,7 @@ bool cfgReadEE() {
   @param font the font id
 */
 void loadFont(uint8_t font) {
-  /*
-    uint8_t *buf = new uint8_t[16];
-    if (buf) {
-        memcpy_P(buf, FONTS[font], len_xyz);
-       }
-    uint8_t *p = &FONTS[font];
-  */
-  //int fontSize = sizeof(FONTS[font]) / 8;
+  // Load each character into RAM
   for (int i = 0; i < fontSize; i++)
     memcpy_P(&DIGIT[i], &FONTS[font][i], 8);
 }
@@ -227,7 +220,7 @@ void parseTime() {
       }
       else if (strcmp(buf, "FONT") == 0) {
         uint8_t   font = Serial.parseInt();
-        font %= 11;
+        font %= fontCount;
         loadFont(font);
         cfgData.font = font;
         cfgWriteEE();
@@ -235,7 +228,7 @@ void parseTime() {
       }
       else if (strcmp(buf, "BRGHT") == 0) {
         uint8_t   brgt = Serial.parseInt();
-        brgt %= 16;
+        brgt &= 0x0F;
         for (int address = 0; address < mtx.getDeviceCount(); address++)
           // Set the brightness
           mtx.setIntensity(address, brgt);
