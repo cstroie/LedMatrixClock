@@ -40,85 +40,102 @@ DS3231 rtc;
 #define MATRICES 3
 LedControl mtx = LedControl(DIN_PIN, CLK_PIN, CS_PIN, MATRICES);
 
-struct CONFIG {
-  uint8_t font;
-  uint8_t brightness;
-  uint8_t crc;
-};
-CONFIG eeConfig;
-uint16_t eeAddress = 400;
-
 // The currently selected font
 uint8_t DIGIT[16][8] = {0};
-// Display brightness
-uint8_t mtxBrightness = 1;
 
-// Show time independently from minutes changing
+
+// Define the configuration type
+struct cfgEE_t {
+  uint8_t font; // Display font
+  uint8_t brgt; // Display brightness
+  uint8_t crc8; // CRC8
+};
+// The global configuration structure
+cfgEE_t   cfgData;
+// EEPROM address to store the configuration to
+uint16_t  cfgEEAddress = 0x0180;
+
+// Show time independently of minutes changing
 bool mtxShowTime = true;
+
 
 /**
   CRC8 computing
 
-  @param crc partial CRC
-  @param data new data
+  @param inCrc partial CRC
+  @param inData new data
   @return updated CRC
 */
-uint8_t crc8_update(uint8_t crc, uint8_t data) {
-  uint8_t updated = crc ^ data;
+uint8_t crc_8(uint8_t inCrc, uint8_t inData) {
+  uint8_t outCrc = inCrc ^ inData;
   for (uint8_t i = 0; i < 8; ++i) {
-    if ((updated & 0x80 ) != 0) {
-      updated <<= 1;
-      updated ^= 0x07;
+    if ((outCrc & 0x80 ) != 0) {
+      outCrc <<= 1;
+      outCrc ^= 0x07;
     }
     else {
-      updated <<= 1;
+      outCrc <<= 1;
     }
   }
-  return updated;
+  return outCrc;
 }
 
 /**
-  Write the configuration to EEPROM, along with CRC8
+  Compute the CRC8 of the configuration structure
 
-  @param tm the time value to store
+  @param cfgTemp the configuration structure
+  @return computed CRC8
 */
-void eeConfigWrite() {
-  // Temporary config structure
-  CONFIG cfg;
-  // Read the data from EEPROM
-  EEPROM.get(eeAddress, cfg);
-  // Compute CRC8 checksum
-  uint8_t crc = 0;
-  crc = crc8_update(crc, eeConfig.font);
-  crc = crc8_update(crc, eeConfig.brightness);
-  eeConfig.crc = crc;
-  // Write the data
-  EEPROM.put(eeAddress, eeConfig);
+uint8_t cfgEECRC(struct cfgEE_t cfg) {
+  // Compute the CRC8 checksum of the data
+  uint8_t crc8 = 0;
+  crc8 = crc_8(crc8, cfg.font);
+  crc8 = crc_8(crc8, cfg.brgt);
+  return crc8;
 }
 
 /**
-  Read the configuration from EEPROM, along with CRC8 and verify
+  Compare two configuration structures
+
+  @param cfg1 the first configuration structure
+  @param cfg1 the second configuration structure
+  @return true if equal
 */
-bool eeConfigRead() {
-  CONFIG cfg;
-  // Read the data
-  EEPROM.get(eeAddress, cfg);
-  // Compute CRC8 checksum
-  uint8_t crc = 0;
-  crc = crc8_update(crc, cfg.font);
-  crc = crc8_update(crc, cfg.brightness);
-  // Verify
-  if (cfg.crc == crc) {
-    eeConfig.font = cfg.font;
-    eeConfig.brightness = cfg.brightness;
-    eeConfig.crc = cfg.crc;
+bool cfgCompare(struct cfgEE_t cfg1, struct cfgEE_t cfg2) {
+  // Compute the CRC8 checksum of the data
+  if ((cfg1.font == cfg2.font) and
+      (cfg1.brgt == cfg2.brgt) and
+      (cfg1.crc8 == cfg2.crc8))
     return true;
-  }
-  else {
-    eeConfig.font = 8;
-    eeConfig.brightness = 1;
+  else
     return false;
-  }
+}
+
+/**
+  Write the configuration to EEPROM, along with CRC8, if different
+*/
+void cfgWriteEE() {
+  // Temporary configuration structure
+  cfgEE_t cfgTemp;
+  // Read the data from EEPROM
+  EEPROM.get(cfgEEAddress, cfgTemp);
+  // Compute the CRC8 checksum of the read data
+  cfgData.crc8 = cfgEECRC(cfgData);
+  // Compare the new and the stored data
+  if (not cfgCompare(cfgData, cfgTemp))
+    // Write the data
+    EEPROM.put(cfgEEAddress, cfgData);
+}
+
+/**
+  Read the configuration from EEPROM, along with CRC8, and verify
+*/
+bool cfgReadEE() {
+  // Read the data from EEPROM
+  EEPROM.get(cfgEEAddress, cfgData);
+  // Compute the CRC8 checksum of the read data
+  uint8_t crc8 = cfgEECRC(cfgData);
+  return (cfgData.crc8 == crc8);
 }
 
 /**
@@ -212,19 +229,19 @@ void parseTime() {
         uint8_t   font = Serial.parseInt();
         font %= 11;
         loadFont(font);
-        eeConfig.font = font;
-        eeConfigWrite();
+        cfgData.font = font;
+        cfgWriteEE();
         Serial.print(F("Setting font to ")); Serial.println(font);
       }
       else if (strcmp(buf, "BRGHT") == 0) {
-        uint8_t   brght = Serial.parseInt();
-        brght %= 16;
+        uint8_t   brgt = Serial.parseInt();
+        brgt %= 16;
         for (int address = 0; address < mtx.getDeviceCount(); address++)
           // Set the brightness
-          mtx.setIntensity(address, brght);
-        eeConfig.brightness = brght;
-        eeConfigWrite();
-        Serial.print(F("Setting brightness to ")); Serial.println(brght);
+          mtx.setIntensity(address, brgt);
+        cfgData.brgt = brgt;
+        cfgWriteEE();
+        Serial.print(F("Setting brightness to ")); Serial.println(brgt);
       }
     }
     mtxShowTime = true;
@@ -242,12 +259,16 @@ void setup() {
   Serial.begin(9600);
 
   // Read the configuration from EEPROM
-  eeConfigRead();
+  if (not cfgReadEE()) {
+    // Invalid data, use some defaults
+    cfgData.font = 8;
+    cfgData.brgt = 1;
+  }
 
   // Init all led matrices
   for (int address = 0; address < mtx.getDeviceCount(); address++) {
     // Set the brightness
-    mtx.setIntensity(address, eeConfig.brightness);
+    mtx.setIntensity(address, cfgData.brgt);
     // Clear the display
     mtx.clearDisplay(address);
     // The MAX72XX is in power-saving mode on startup
@@ -255,7 +276,7 @@ void setup() {
   }
 
   // Load the font
-  loadFont(eeConfig.font);
+  loadFont(cfgData.font);
 
   // Init and configure RTC
   if (! rtc.init()) {
