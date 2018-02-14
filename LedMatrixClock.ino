@@ -145,8 +145,37 @@ bool cfgReadEE() {
 */
 void loadFont(uint8_t font) {
   // Load each character into RAM
-  for (int i = 0; i < fontSize; i++)
+  for (int i = 0; i < fontSize; i++) {
     memcpy_P(&DIGIT[i], &FONTS[font][i], 8);
+    transpose8b64c(DIGIT[i]);
+  }
+}
+
+/**
+  Transpose a 8x8 matrix
+  (c) Hacker's Delight, Chapter 7-3
+*/
+void transpose8b64c(uint8_t A[8]) {
+  uint64_t x, y, mask;
+  uint8_t  i, s;
+
+  // Load 8 bytes from the input array and pack them into x
+  for (i = 0; i <= 7; i++)
+    x = x << 8 | A[i];
+
+  mask = 0x8040201008040201ULL;
+  y = x & mask;
+
+  for (s = 7; s <= 49; s = s + 7) {
+    mask = mask >> 8;
+    y = y | ((x & mask) << s) | ((x >> s) & mask);
+  }
+
+  // Store result back into the array
+  for (i = 7; i >= 0; i--) {
+    A[i] = y;
+    y = y >> 8;
+  }
 }
 
 
@@ -166,17 +195,17 @@ void showTimeBCD(uint8_t* HHMM, bool force = false) {
     // First matrix
     if ((HHMM[1] != _hh) or force) {
       row = DIGIT[HHMM[0]][i] >> 3 | DIGIT[HHMM[1]][i] << 3;
-      mtx.setColumn(0, i, row);
+      mtx.setRow(0, i, row);
     }
     // Second matrix
     if ((HHMM[1] != _hh) or (HHMM[3] != _mm) or force) {
       row = DIGIT[HHMM[1]][i] >> 5 | DIGIT[HHMM[2]][i] << 2;
-      mtx.setColumn(1, i, row);
+      mtx.setRow(1, i, row);
     }
     // Third matrix
     if ((HHMM[3] != _mm) or force) {
       row = DIGIT[HHMM[2]][i] >> 6 | DIGIT[HHMM[3]][i];
-      mtx.setColumn(2, i, row);
+      mtx.setRow(2, i, row);
     }
   }
 
