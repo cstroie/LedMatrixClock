@@ -231,47 +231,99 @@ void showTime(uint8_t hh, uint8_t mm) {
 /**
   Basic serial data parsing for setting time
 
-  Usage: "SET TIME YYYY/MM/DD HH:MM:SS" or, using date(1),
-  ( sleep 2 && date "+SET TIME %Y/%m/%d %H:%M:%S" ) > /dev/ttyUSB0
 */
-void parseTime() {
-  if (Serial.findUntil("SET ", "\r")) {
-    char buf[16] = "";
-    if (Serial.readBytesUntil(' ', buf, 16)) {
-      if (strcmp(buf, "TIME") == 0) {
-        uint16_t  year  = Serial.parseInt();
-        uint8_t   month = Serial.parseInt();
-        uint8_t   day   = Serial.parseInt();
-        uint8_t   hour  = Serial.parseInt();
-        uint8_t   min   = Serial.parseInt();
-        uint8_t   sec   = Serial.parseInt();
-        rtc.writeDateTime(sec, min, hour, day, month, year);
+void command() {
+  char buf[64] = "";
+  char sep, cmd, prm;
+  if (Serial.findUntil("AT", "\r")) {
+    sep = Serial.read();
+    if (sep == '&') {
+      // One char and numeric value
+      cmd = Serial.read();
+      prm = Serial.read();
+      if (cmd == 'F') {
+        // Font
+        if (prm >= '0' and prm <= '9') {
+          // Set font
+          cfgData.font = prm - '0';
+          loadFont(cfgData.font);
+          cfgWriteEE();
+          Serial.println(F("OK"));
+        }
+        else if (prm == '?') {
+          // Get font
+          Serial.println(cfgData.font);
+        }
+        else
+          Serial.println(F("ERROR"));
       }
-      else if (strcmp(buf, "FONT") == 0) {
-        uint8_t   font = Serial.parseInt();
-        font %= fontCount;
-        loadFont(font);
-        cfgData.font = font;
-        cfgWriteEE();
-        Serial.print(F("Setting font to ")); Serial.println(font);
-      }
-      else if (strcmp(buf, "BRGHT") == 0) {
-        uint8_t   brgt = Serial.parseInt();
-        brgt &= 0x0F;
-        for (int address = 0; address < mtx.getDeviceCount(); address++)
-          // Set the brightness
-          mtx.setIntensity(address, brgt);
-        cfgData.brgt = brgt;
-        cfgWriteEE();
-        Serial.print(F("Setting brightness to ")); Serial.println(brgt);
+      else if (cmd == 'B') {
+        // Brightness
+        if (prm >= '0' and prm <= '9') {
+          // Set brightness
+          uint8_t brgt = prm - '0';
+          // Read one more char
+          prm = Serial.read();
+          if (prm >= '0' and prm <= '9')
+            brgt = (brgt * 10 + (prm - '0')) % 0x10;
+          cfgData.brgt = brgt;
+          for (int m = 0; m < mtx.getDeviceCount(); m++)
+            // Set the brightness
+            mtx.setIntensity(m, cfgData.brgt);
+          cfgWriteEE();
+          Serial.println(F("OK"));
+        }
+        else if (prm == '?') {
+          // Get brightness
+          Serial.println(cfgData.brgt);
+        }
+        else
+          Serial.println(F("ERROR"));
       }
     }
-    mtxShowTime = true;
-    Serial.flush();
+    else if (sep == '$') {
+      // One char and quoted string value
+      cmd = Serial.read();
+      prm = Serial.read();
+      if (cmd == 'T') {
+        // Time and date
+        //  Usage: AT$T="YYYY/MM/DD HH:MM:SS" or, using date(1),
+        //  ( sleep 2 && date "+AT\$T=\"%Y/%m/%d %H:%M:%S\"" ) > /dev/ttyUSB0
+        if (prm == '=') {
+          // Set time and date
+          uint16_t  year  = Serial.parseInt();
+          uint8_t   month = Serial.parseInt();
+          uint8_t   day   = Serial.parseInt();
+          uint8_t   hour  = Serial.parseInt();
+          uint8_t   min   = Serial.parseInt();
+          uint8_t   sec   = Serial.parseInt();
+          rtc.writeDateTime(sec, min, hour, day, month, year);
+          // TODO Check
+          Serial.println(F("OK"));
+        }
+        else if (prm == '?') {
+          // TODO Get time and date
+          Serial.println(F("OK"));
+        }
+        else
+          Serial.println(F("ERROR"));
+      }
+    }
+    else if (sep == '?') {
+      Serial.println(F("AT?"));
+      Serial.println(F("AT&Fn"));
+      Serial.println(F("AT&Bn"));
+      Serial.println(F("AT$T=\"YYYY/MM/DD HH:MM:SS\""));
+    }
   }
   else
-    Serial.println(F("Usage: SET TIME YYYY/MM/DD HH:MM:SS"));
+    Serial.println(F("ERROR"));
+
+  // Force time display
+  mtxShowTime = true;
+  Serial.flush();
 }
+
 
 /**
   Main Arduino setup function
@@ -327,7 +379,7 @@ void loop() {
   //showTime(rtc.HH, rtc.MM);
 
   if (Serial.available()) {
-    parseTime();
+    command();
   }
 
   // Check the alarms, the Alarm 2 triggers once per minute
