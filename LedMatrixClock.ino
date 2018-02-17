@@ -25,6 +25,9 @@
 #include <LedControl.h>
 #include "DS3231.h"
 
+const char DEVNAME[] = "LedMatrix Clock";
+const char VERSION[] = "1.7";
+
 // Pin definitions
 const int DIN_PIN = 11;
 const int CS_PIN  = 13;
@@ -233,63 +236,85 @@ void showTime(uint8_t hh, uint8_t mm) {
 
 */
 void command() {
-  char buf[64] = "";
-  char sep, cmd, prm;
-  if (Serial.findUntil("AT", "\r")) {
-    sep = Serial.read();
-    if (sep == '&') {
+  char buf[35] = "";
+  int8_t len = -1;
+  bool result = false;
+  if (Serial.find("AT")) {
+    len = Serial.readBytesUntil('\r', buf, 4);
+    buf[len] = '\0';
+    Serial.println(buf);
+    if (buf[0] == '*') {
       // One char and numeric value
-      cmd = Serial.read();
-      prm = Serial.read();
-      if (cmd == 'F') {
+      if (buf[1] == 'F') {
         // Font
-        if (prm >= '0' and prm <= '9') {
+        if (buf[2] >= '0' and buf[2] <= '9') {
           // Set font
-          cfgData.font = prm - '0';
+          cfgData.font = buf[2] - '0';
           loadFont(cfgData.font);
-          cfgWriteEE();
-          Serial.println(F("OK"));
+          result = true;
         }
-        else if (prm == '?') {
+        else if (buf[2] == '?') {
           // Get font
+          Serial.print(F("*F: "));
           Serial.println(cfgData.font);
+          result = true;
         }
-        else
-          Serial.println(F("ERROR"));
       }
-      else if (cmd == 'B') {
+      else if (buf[1] == 'B') {
         // Brightness
-        if (prm >= '0' and prm <= '9') {
+        if (buf[2] >= '0' and buf[2] <= '9') {
           // Set brightness
-          uint8_t brgt = prm - '0';
+          uint8_t brgt = buf[2] - '0';
           // Read one more char
-          prm = Serial.read();
-          if (prm >= '0' and prm <= '9')
-            brgt = (brgt * 10 + (prm - '0')) % 0x10;
+          if (buf[3] >= '0' and buf[3] <= '9')
+            brgt = (brgt * 10 + (buf[3] - '0')) % 0x10;
           cfgData.brgt = brgt;
           for (int m = 0; m < mtx.getDeviceCount(); m++)
             // Set the brightness
             mtx.setIntensity(m, cfgData.brgt);
-          cfgWriteEE();
-          Serial.println(F("OK"));
+          result = true;
         }
-        else if (prm == '?') {
+        else if (buf[2] == '?') {
           // Get brightness
+          Serial.print(F("*B: "));
           Serial.println(cfgData.brgt);
+          result = true;
         }
-        else
-          Serial.println(F("ERROR"));
       }
     }
-    else if (sep == '$') {
+    else if (buf[0] == '&') {
+      switch (buf[1]) {
+        case 'F':
+          // Factory default
+          result = true;
+          break;
+        case 'V':
+          // Show the configuration
+          Serial.print(F("*F: "));
+          Serial.println(cfgData.font);
+          Serial.print(F("*B: "));
+          Serial.println(cfgData.brgt);
+          result = true;
+          break;
+        case 'W':
+          // Store the configuration
+          cfgWriteEE();
+          result = true;
+          break;
+        case 'Y':
+          // Read the configuration
+          cfgReadEE();
+          result = true;
+          break;
+      }
+    }
+    else if (buf[0] == '$') {
       // One char and quoted string value
-      cmd = Serial.read();
-      prm = Serial.read();
-      if (cmd == 'T') {
+      if (buf[1] == 'T') {
         // Time and date
         //  Usage: AT$T="YYYY/MM/DD HH:MM:SS" or, using date(1),
         //  ( sleep 2 && date "+AT\$T=\"%Y/%m/%d %H:%M:%S\"" ) > /dev/ttyUSB0
-        if (prm == '=') {
+        if (buf[2] == '=' and buf[3] == '"') {
           // Set time and date
           uint16_t  year  = Serial.parseInt();
           uint8_t   month = Serial.parseInt();
@@ -297,33 +322,51 @@ void command() {
           uint8_t   hour  = Serial.parseInt();
           uint8_t   min   = Serial.parseInt();
           uint8_t   sec   = Serial.parseInt();
-          rtc.writeDateTime(sec, min, hour, day, month, year);
-          // TODO Check
-          Serial.println(F("OK"));
+          if (year != 0 and month != 0 and day != 0) {
+            rtc.writeDateTime(sec, min, hour, day, month, year);
+            // TODO Check
+            result = true;
+          }
         }
-        else if (prm == '?') {
+        else if (buf[2] == '?') {
           // TODO Get time and date
-          Serial.println(F("OK"));
+          result = true;
         }
-        else
-          Serial.println(F("ERROR"));
       }
     }
-    else if (sep == '?') {
+    else if (buf[0] == '?' and len == 1) {
       Serial.println(F("AT?"));
-      Serial.println(F("AT&Fn"));
-      Serial.println(F("AT&Bn"));
+      Serial.println(F("AT*Fn"));
+      Serial.println(F("AT*Bn"));
       Serial.println(F("AT$T=\"YYYY/MM/DD HH:MM:SS\""));
+      result = true;
     }
+    else if (buf[0] == 'I' and len == 1) {
+      printInfo();
+      Serial.println(__DATE__);
+      result = true;
+    }
+    else if (len == 0)
+      result = true;
   }
-  else
-    Serial.println(F("ERROR"));
 
-  // Force time display
-  mtxShowTime = true;
-  Serial.flush();
+  if (len >= 0) {
+    if (result)
+      Serial.println(F("OK"));
+    else
+      Serial.println(F("ERROR"));
+
+    // Force time display
+    mtxShowTime = true;
+    Serial.flush();
+  }
 }
 
+void printInfo() {
+  Serial.print(DEVNAME);
+  Serial.print(" ");
+  Serial.println(VERSION);
+}
 
 /**
   Main Arduino setup function
@@ -331,6 +374,7 @@ void command() {
 void setup() {
   // Init the serial com
   Serial.begin(9600);
+  printInfo();
 
   // Read the configuration from EEPROM
   if (not cfgReadEE()) {
@@ -351,6 +395,7 @@ void setup() {
 
   // Load the font
   loadFont(cfgData.font);
+
 
   // Init and configure RTC
   if (! rtc.init()) {
@@ -381,11 +426,12 @@ void loop() {
   if (Serial.available()) {
     command();
   }
-
-  // Check the alarms, the Alarm 2 triggers once per minute
-  if ((rtc.checkAlarms() & 0x02) or mtxShowTime) {
-    rtc.readTimeBCD();
-    showTimeBCD(rtc.R, mtxShowTime);
-    mtxShowTime = false;
-  }
+  /*
+    // Check the alarms, the Alarm 2 triggers once per minute
+    if ((rtc.checkAlarms() & 0x02) or mtxShowTime) {
+      rtc.readTimeBCD();
+      showTimeBCD(rtc.R, mtxShowTime);
+      mtxShowTime = false;
+    }
+  */
 }
