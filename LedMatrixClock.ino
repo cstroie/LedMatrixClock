@@ -26,7 +26,7 @@
 #include "DS3231.h"
 
 const char DEVNAME[] = "LedMatrix Clock";
-const char VERSION[] = "1.8";
+const char VERSION[] = "1.9";
 
 // Pin definitions
 const int DIN_PIN = 11; // MOSI
@@ -51,6 +51,7 @@ uint8_t DIGIT[16][8] = {0};
 struct cfgEE_t {
   uint8_t font; // Display font
   uint8_t brgt; // Display brightness
+  uint8_t tmpu; // Temperature units
   uint8_t crc8; // CRC8
 };
 // The global configuration structure
@@ -94,6 +95,7 @@ uint8_t cfgEECRC(struct cfgEE_t cfg) {
   uint8_t crc8 = 0;
   crc8 = crc_8(crc8, cfg.font);
   crc8 = crc_8(crc8, cfg.brgt);
+  crc8 = crc_8(crc8, cfg.tmpu);
   return crc8;
 }
 
@@ -108,6 +110,7 @@ bool cfgCompare(struct cfgEE_t cfg1, struct cfgEE_t cfg2) {
   // Compute the CRC8 checksum of the data
   if ((cfg1.font == cfg2.font) and
       (cfg1.brgt == cfg2.brgt) and
+      (cfg1.tmpu == cfg2.tmpu) and
       (cfg1.crc8 == cfg2.crc8))
     return true;
   else
@@ -147,35 +150,34 @@ bool cfgReadEE() {
   @param font the font id
 */
 void loadFont(uint8_t font) {
-  uint8_t tmp[8];
+  uint8_t chrbuf[8] = {0};
+  font %= fontCount;
   // Load each character into RAM
   for (int i = 0; i < fontSize; i++) {
-    //memcpy_P(&tmp, &FONTS[font][i], 8);
-    memcpy_P(&DIGIT[i], &FONTS[font][i], 8);
-    /*
-        for (uint8_t j = 0; j < 8; j++) {
-          uint8_t x = tmp[j];
-          for (uint8_t k = 8; k > 0; --k) {
-            DIGIT[i][k] <<= 1;
-            DIGIT[i][k] |= (tmp[j] & 0x01);
-            tmp[j] >>= 1;
-          }
-        }
-    */
+    // Load into temporary buffer
+    memcpy_P(&chrbuf, &FONTS[font][i], 8);
+    // Rotate
+    for (uint8_t j = 0; j < 8; j++) {
+      for (uint8_t k = 0; k < 8; k++) {
+        DIGIT[i][7 - k] <<= 1;
+        DIGIT[i][7 - k] |= (chrbuf[j] & 0x01);
+        chrbuf[j] >>= 1;
+      }
+    }
   }
 }
 
 /**
   Show the time specfied in unpacked BCD (4 bytes)
 */
-void showTimeBCD(uint8_t* HHMM, bool force = false) {
+void showTimeBCDCol(uint8_t* HHMM, bool force = false) {
   // Keep previous values for hours and minutes
   static uint8_t _hh = 255, _mm = 255;
 
   // Skip if not changed
   if (not force and (HHMM[1] == _hh) and (HHMM[3] == _mm)) return;
 
-  // Display the columns (the matrices are transposed)
+  // Display the columns (the matrices are rotated)
   for (int i = 0; i < 8; i++) {
     uint8_t row;
     // First matrix
@@ -193,6 +195,46 @@ void showTimeBCD(uint8_t* HHMM, bool force = false) {
       row = DIGIT[HHMM[2]][i] >> 6 | DIGIT[HHMM[3]][i];
       mtx.setColumn(0, i, row);
     }
+  }
+
+  // Keep the current values
+  _hh = HHMM[1];
+  _mm = HHMM[3];
+}
+
+/**
+  Show the time specfied in unpacked BCD (4 bytes)
+*/
+void showTimeBCD(uint8_t* HHMM, bool force = false) {
+  // Keep previous values for hours and minutes
+  static uint8_t _hh = 255, _mm = 255;
+
+  // Skip if not changed
+  if (not force and (HHMM[1] == _hh) and (HHMM[3] == _mm)) return;
+
+  // The framebuffer
+  uint8_t fb[32] = {0};
+
+  // Digits positions
+  uint8_t pos[] = {23, 17, 9, 3};
+
+  // Print into the framebuffer
+  for (uint8_t d = 0; d < 4; d++) {
+    for (uint8_t l = 0; l < 5; l++) {
+      fb[pos[d] + l] |= DIGIT[HHMM[d]][l];
+    }
+  }
+
+  // Print the colon
+  for (uint8_t l = 0; l < 5; l++) {
+    fb[13 + l] |= DIGIT[10][l];
+  }
+
+  // Display the framebuffer
+  for (uint8_t i = 0; i < 32; i++) {
+    uint8_t m = i >> 3;
+    uint8_t l = i & 0x07;
+    mtx.setRow(m, l, fb[i]);
   }
 
   // Keep the current values
@@ -225,7 +267,6 @@ void command() {
   if (Serial.find("AT")) {
     len = Serial.readBytesUntil('\r', buf, 4);
     buf[len] = '\0';
-    Serial.println(buf);
     if (buf[0] == '*') {
       // One char and numeric value
       if (buf[1] == 'F') {
@@ -264,6 +305,26 @@ void command() {
           result = true;
         }
       }
+      else if (buf[1] == 'T') {
+        // Temperature
+        if (buf[2] >= '0' and buf[2] <= '1') {
+          // Set temperature units
+          cfgData.tmpu = buf[2] == '1' ? 'C' : 'F';
+          result = true;
+        }
+        else if (buf[2] == '?') {
+          // Get temperature units
+          Serial.print(F("*T: "));
+          Serial.println(cfgData.tmpu == 'C' ? "C" : "F");
+          result = true;
+        }
+        else if (len == 2) {
+          // Show the temperature
+          Serial.print((int)rtc.readTemperature(cfgData.tmpu == 'C'));
+          Serial.println(cfgData.tmpu == 'C' ? "C" : "F");
+          result = true;
+        }
+      }
     }
     else if (buf[0] == '&') {
       switch (buf[1]) {
@@ -277,6 +338,8 @@ void command() {
           Serial.println(cfgData.font);
           Serial.print(F("*B: "));
           Serial.println(cfgData.brgt);
+          Serial.print(F("*T: "));
+          Serial.println(cfgData.tmpu == 'C' ? "C" : "F");
           result = true;
           break;
         case 'W':
@@ -362,8 +425,9 @@ void setup() {
   // Read the configuration from EEPROM
   if (not cfgReadEE()) {
     // Invalid data, use some defaults
-    cfgData.font = 8;
+    cfgData.font = 1;
     cfgData.brgt = 1;
+    cfgData.tmpu = 'C';
   }
 
   // Init all led matrices
@@ -393,10 +457,6 @@ void setup() {
     // January 21, 2014 at 3am you would call:
     // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
   }
-
-  // Display the temperature
-  Serial.print("T: ");
-  Serial.println((int)rtc.readTemperature());
 
   for (int i = 0; i < MATRICES; i++)
     for (int j = 0; j < 8 ; j++) {
