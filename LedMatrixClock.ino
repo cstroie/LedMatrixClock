@@ -40,7 +40,7 @@ const int CLK_PIN = 12;
 DS3231 rtc;
 
 // The matrix object
-#define MATRICES 3
+#define MATRICES 4
 LedControl mtx = LedControl(DIN_PIN, CLK_PIN, CS_PIN, MATRICES);
 
 // The currently selected font
@@ -181,7 +181,7 @@ void showTimeBCD(uint8_t* HHMM, bool force = false) {
     // First matrix
     if ((HHMM[1] != _hh) or force) {
       row = DIGIT[HHMM[0]][i] >> 3 | DIGIT[HHMM[1]][i] << 3;
-      mtx.setColumn(0, i, row);
+      mtx.setColumn(2, i, row);
     }
     // Second matrix
     if ((HHMM[1] != _hh) or (HHMM[3] != _mm) or force) {
@@ -191,7 +191,7 @@ void showTimeBCD(uint8_t* HHMM, bool force = false) {
     // Third matrix
     if ((HHMM[3] != _mm) or force) {
       row = DIGIT[HHMM[2]][i] >> 6 | DIGIT[HHMM[3]][i];
-      mtx.setColumn(2, i, row);
+      mtx.setColumn(0, i, row);
     }
   }
 
@@ -397,6 +397,12 @@ void setup() {
   // Display the temperature
   Serial.print("T: ");
   Serial.println((int)rtc.readTemperature());
+
+  for (int i = 0; i < MATRICES; i++)
+    for (int j = 0; j < 8 ; j++) {
+      mtx.setRow(i, j, 0x01);
+      delay(10);
+    }
 }
 
 /**
@@ -409,12 +415,11 @@ void loop() {
   if (Serial.available()) {
     command();
   }
-  /*
-    // Check the alarms, the Alarm 2 triggers once per minute
-    if ((rtc.checkAlarms() & 0x02) or mtxShowTime) {
-      rtc.readTimeBCD();
-      showTimeBCD(rtc.R, mtxShowTime);
-      mtxShowTime = false;
-    }
-  */
+
+  // Check the alarms, the Alarm 2 triggers once per minute
+  if ((rtc.checkAlarms() & 0x02) or mtxShowTime) {
+    rtc.readTimeBCD();
+    showTimeBCD(rtc.R, mtxShowTime);
+    mtxShowTime = false;
+  }
 }
