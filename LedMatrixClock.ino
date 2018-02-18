@@ -25,6 +25,9 @@
 #include <LedControl.h>
 #include "DS3231.h"
 
+const char DEVNAME[] = "LedMatrix Clock";
+const char VERSION[] = "1.7";
+
 // Pin definitions
 const int DIN_PIN = 11;
 const int CS_PIN  = 13;
@@ -37,7 +40,7 @@ const int CLK_PIN = 12;
 DS3231 rtc;
 
 // The matrix object
-#define MATRICES 3
+#define MATRICES 4
 LedControl mtx = LedControl(DIN_PIN, CLK_PIN, CS_PIN, MATRICES);
 
 // The currently selected font
@@ -178,7 +181,7 @@ void showTimeBCD(uint8_t* HHMM, bool force = false) {
     // First matrix
     if ((HHMM[1] != _hh) or force) {
       row = DIGIT[HHMM[0]][i] >> 3 | DIGIT[HHMM[1]][i] << 3;
-      mtx.setColumn(0, i, row);
+      mtx.setColumn(2, i, row);
     }
     // Second matrix
     if ((HHMM[1] != _hh) or (HHMM[3] != _mm) or force) {
@@ -188,7 +191,7 @@ void showTimeBCD(uint8_t* HHMM, bool force = false) {
     // Third matrix
     if ((HHMM[3] != _mm) or force) {
       row = DIGIT[HHMM[2]][i] >> 6 | DIGIT[HHMM[3]][i];
-      mtx.setColumn(2, i, row);
+      mtx.setColumn(0, i, row);
     }
   }
 
@@ -214,46 +217,138 @@ void showTime(uint8_t hh, uint8_t mm) {
 /**
   Basic serial data parsing for setting time
 
-  Usage: "SET TIME YYYY/MM/DD HH:MM:SS" or, using date(1),
-  ( sleep 2 && date "+SET TIME %Y/%m/%d %H:%M:%S" ) > /dev/ttyUSB0
 */
-void parseTime() {
-  if (Serial.findUntil("SET ", "\r")) {
-    char buf[16] = "";
-    if (Serial.readBytesUntil(' ', buf, 16)) {
-      if (strcmp(buf, "TIME") == 0) {
-        uint16_t  year  = Serial.parseInt();
-        uint8_t   month = Serial.parseInt();
-        uint8_t   day   = Serial.parseInt();
-        uint8_t   hour  = Serial.parseInt();
-        uint8_t   min   = Serial.parseInt();
-        uint8_t   sec   = Serial.parseInt();
-        rtc.writeDateTime(sec, min, hour, day, month, year);
+void command() {
+  char buf[35] = "";
+  int8_t len = -1;
+  bool result = false;
+  if (Serial.find("AT")) {
+    len = Serial.readBytesUntil('\r', buf, 4);
+    buf[len] = '\0';
+    Serial.println(buf);
+    if (buf[0] == '*') {
+      // One char and numeric value
+      if (buf[1] == 'F') {
+        // Font
+        if (buf[2] >= '0' and buf[2] <= '9') {
+          // Set font
+          cfgData.font = buf[2] - '0';
+          loadFont(cfgData.font);
+          result = true;
+        }
+        else if (buf[2] == '?') {
+          // Get font
+          Serial.print(F("*F: "));
+          Serial.println(cfgData.font);
+          result = true;
+        }
       }
-      else if (strcmp(buf, "FONT") == 0) {
-        uint8_t   font = Serial.parseInt();
-        font %= fontCount;
-        loadFont(font);
-        cfgData.font = font;
-        cfgWriteEE();
-        Serial.print(F("Setting font to ")); Serial.println(font);
-      }
-      else if (strcmp(buf, "BRGHT") == 0) {
-        uint8_t   brgt = Serial.parseInt();
-        brgt &= 0x0F;
-        for (int address = 0; address < mtx.getDeviceCount(); address++)
-          // Set the brightness
-          mtx.setIntensity(address, brgt);
-        cfgData.brgt = brgt;
-        cfgWriteEE();
-        Serial.print(F("Setting brightness to ")); Serial.println(brgt);
+      else if (buf[1] == 'B') {
+        // Brightness
+        if (buf[2] >= '0' and buf[2] <= '9') {
+          // Set brightness
+          uint8_t brgt = buf[2] - '0';
+          // Read one more char
+          if (buf[3] >= '0' and buf[3] <= '9')
+            brgt = (brgt * 10 + (buf[3] - '0')) % 0x10;
+          cfgData.brgt = brgt;
+          for (int m = 0; m < mtx.getDeviceCount(); m++)
+            // Set the brightness
+            mtx.setIntensity(m, cfgData.brgt);
+          result = true;
+        }
+        else if (buf[2] == '?') {
+          // Get brightness
+          Serial.print(F("*B: "));
+          Serial.println(cfgData.brgt);
+          result = true;
+        }
       }
     }
+    else if (buf[0] == '&') {
+      switch (buf[1]) {
+        case 'F':
+          // Factory default
+          result = true;
+          break;
+        case 'V':
+          // Show the configuration
+          Serial.print(F("*F: "));
+          Serial.println(cfgData.font);
+          Serial.print(F("*B: "));
+          Serial.println(cfgData.brgt);
+          result = true;
+          break;
+        case 'W':
+          // Store the configuration
+          cfgWriteEE();
+          result = true;
+          break;
+        case 'Y':
+          // Read the configuration
+          cfgReadEE();
+          result = true;
+          break;
+      }
+    }
+    else if (buf[0] == '$') {
+      // One char and quoted string value
+      if (buf[1] == 'T') {
+        // Time and date
+        //  Usage: AT$T="YYYY/MM/DD HH:MM:SS" or, using date(1),
+        //  ( sleep 2 && date "+AT\$T=\"%Y/%m/%d %H:%M:%S\"" ) > /dev/ttyUSB0
+        if (buf[2] == '=' and buf[3] == '"') {
+          // Set time and date
+          uint16_t  year  = Serial.parseInt();
+          uint8_t   month = Serial.parseInt();
+          uint8_t   day   = Serial.parseInt();
+          uint8_t   hour  = Serial.parseInt();
+          uint8_t   min   = Serial.parseInt();
+          uint8_t   sec   = Serial.parseInt();
+          if (year != 0 and month != 0 and day != 0) {
+            rtc.writeDateTime(sec, min, hour, day, month, year);
+            // TODO Check
+            result = true;
+          }
+        }
+        else if (buf[2] == '?') {
+          // TODO Get time and date
+          result = true;
+        }
+      }
+    }
+    else if (buf[0] == '?' and len == 1) {
+      Serial.println(F("AT?"));
+      Serial.println(F("AT*Fn"));
+      Serial.println(F("AT*Bn"));
+      Serial.println(F("AT$T=\"YYYY/MM/DD HH:MM:SS\""));
+      result = true;
+    }
+    else if (buf[0] == 'I' and len == 1) {
+      printInfo();
+      Serial.println(__DATE__);
+      result = true;
+    }
+    else if (len == 0)
+      result = true;
+  }
+
+  if (len >= 0) {
+    if (result)
+      Serial.println(F("OK"));
+    else
+      Serial.println(F("ERROR"));
+
+    // Force time display
     mtxShowTime = true;
     Serial.flush();
   }
-  else
-    Serial.println(F("Usage: SET TIME YYYY/MM/DD HH:MM:SS"));
+}
+
+void printInfo() {
+  Serial.print(DEVNAME);
+  Serial.print(" ");
+  Serial.println(VERSION);
 }
 
 /**
@@ -262,6 +357,7 @@ void parseTime() {
 void setup() {
   // Init the serial com
   Serial.begin(9600);
+  printInfo();
 
   // Read the configuration from EEPROM
   if (not cfgReadEE()) {
@@ -283,6 +379,7 @@ void setup() {
   // Load the font
   loadFont(cfgData.font);
 
+
   // Init and configure RTC
   if (! rtc.init()) {
     Serial.println(F("DS3231 RTC missing"));
@@ -300,6 +397,12 @@ void setup() {
   // Display the temperature
   Serial.print("T: ");
   Serial.println((int)rtc.readTemperature());
+
+  for (int i = 0; i < MATRICES; i++)
+    for (int j = 0; j < 8 ; j++) {
+      mtx.setRow(i, j, 0x01);
+      delay(10);
+    }
 }
 
 /**
@@ -310,7 +413,7 @@ void loop() {
   //showTime(rtc.HH, rtc.MM);
 
   if (Serial.available()) {
-    parseTime();
+    command();
   }
 
   // Check the alarms, the Alarm 2 triggers once per minute
