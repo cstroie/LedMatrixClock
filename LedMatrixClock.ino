@@ -26,12 +26,12 @@
 #include "DS3231.h"
 
 const char DEVNAME[] = "LedMatrix Clock";
-const char VERSION[] = "1.7";
+const char VERSION[] = "1.8";
 
 // Pin definitions
-const int DIN_PIN = 11;
-const int CS_PIN  = 13;
-const int CLK_PIN = 12;
+const int DIN_PIN = 11; // MOSI
+const int CLK_PIN = 13; // SCK
+const int CS_PIN  = 10; // ~SS
 
 // Load the fonts
 #include "fonts.h"
@@ -401,7 +401,8 @@ void setup() {
   for (int i = 0; i < MATRICES; i++)
     for (int j = 0; j < 8 ; j++) {
       mtx.setRow(i, j, 0x01);
-      delay(10);
+      delay(30);
+      mtx.setRow(i, j, 0x00);
     }
 }
 
