@@ -163,7 +163,7 @@ bool DS3231::readTimeBCD() {
 
   @return integer temperature
 */
-int8_t DS3231::readTemperature() {
+int8_t DS3231::readTemperature(bool metric) {
   Wire.beginTransmission(rtcAddr);
   // Temperature register
   Wire.write(0x11);
@@ -171,7 +171,9 @@ int8_t DS3231::readTemperature() {
     return 0x80;
   // Request one byte
   Wire.requestFrom(rtcAddr, (uint8_t)1);
-  return Wire.read();
+  int8_t t = Wire.read();
+  if (not metric) t = (int8_t)((float)t * 1.8 + 32.0);
+  return t;
 }
 
 /**
