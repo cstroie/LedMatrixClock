@@ -68,12 +68,12 @@ void DotMatrix::intensity(uint8_t value) {
 }
 
 void DotMatrix::scanlimit(uint8_t value) {
-  scanlines = value & 0x07;
-  sendAllHWSPI(OP_SCANLIMIT, scanlines);
+  scanlines = ((value - 1) & 0x07) + 1;
+  sendAllHWSPI(OP_SCANLIMIT, scanlines - 1);
 }
 
 void DotMatrix::shutdown(bool yesno) {
-  uint8_t data = yesno ? 1 : 0;
+  uint8_t data = yesno ? 0 : 1;
   sendAllHWSPI(OP_SHUTDOWN, data);
 }
 
@@ -153,8 +153,8 @@ void DotMatrix::sendAllSWSPI(uint8_t reg, uint8_t data) {
   digitalWrite(SPI_CS, LOW);
   /* Send the data */
   for (int i = matrices; i > 0; i--) {
-    shiftOut(SPI_MOSI, SPI_CLK, MSBFIRST, data);
     shiftOut(SPI_MOSI, SPI_CLK, MSBFIRST, reg);
+    shiftOut(SPI_MOSI, SPI_CLK, MSBFIRST, data);
   }
   /* Latch data */
   digitalWrite(SPI_CS, HIGH);
@@ -169,8 +169,8 @@ void DotMatrix::sendAllHWSPI(uint8_t reg, uint8_t data) {
   /* Send the data */
   SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
   for (int i = matrices; i > 0; i--) {
-    SPI.transfer(data);
     SPI.transfer(reg);
+    SPI.transfer(data);
   }
   SPI.endTransaction();
   /* Latch data */
@@ -185,8 +185,8 @@ void DotMatrix::sendAllSWSPI(uint8_t reg, uint8_t* data, uint8_t size) {
   digitalWrite(SPI_CS, LOW);
   /* Send the data */
   for (int i = size; i > 0; i--) {
-    shiftOut(SPI_MOSI, SPI_CLK, MSBFIRST, data[i - 1]);
     shiftOut(SPI_MOSI, SPI_CLK, MSBFIRST, reg);
+    shiftOut(SPI_MOSI, SPI_CLK, MSBFIRST, data[i - 1]);
   }
   /* Latch data */
   digitalWrite(SPI_CS, HIGH);
@@ -201,8 +201,8 @@ void DotMatrix::sendAllHWSPI(uint8_t reg, uint8_t* data, uint8_t size) {
   /* Send the data */
   SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
   for (int i = size; i > 0; i--) {
-    SPI.transfer(data[i - 1]);
     SPI.transfer(reg);
+    SPI.transfer(data[i - 1]);
   }
   SPI.endTransaction();
   /* Latch data */

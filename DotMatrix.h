@@ -16,7 +16,7 @@
 
 enum DotMatrixOps {OP_NOOP, OP_DIGIT0, OP_DIGIT1, OP_DIGIT2, OP_DIGIT3, OP_DIGIT4,
                    OP_DIGIT5, OP_DIGIT6, OP_DIGIT7, OP_DECODEMODE, OP_INTENSITY,
-                   OP_SCANLIMIT, OP_SHUTDOWN, OP_DISPLAYTEST, OP_ALL
+                   OP_SCANLIMIT, OP_SHUTDOWN, OP_DISPLAYTEST = 0x0F
                   };
 
 class DotMatrix {
