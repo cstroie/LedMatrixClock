@@ -38,9 +38,12 @@ const int CS_PIN  = 10; // ~SS
 
 // The RTC
 DS3231 rtc;
+uint32_t rtcDelay = 1000UL;
+uint32_t rtcLastCheck = 0UL;
 
 // The matrix object
-#define MATRICES 4
+#define MATRICES  4
+#define SCANLIMIT 8
 DotMatrix mtx = DotMatrix();
 
 // The currently selected font
@@ -170,42 +173,29 @@ void loadFont(uint8_t font) {
 /**
   Show the time specfied in unpacked BCD (4 bytes)
 */
-void showTimeBCD(uint8_t* HHMM, bool force = false) {
-  // Keep previous values for hours and minutes
-  static uint8_t _hh = 255, _mm = 255;
-
-  // Skip if not changed
-  if (not force and (HHMM[1] == _hh) and (HHMM[3] == _mm)) return;
-
-  // The framebuffer
-  uint8_t fb[32] = {0};
+void showTimeBCD(uint8_t* HHMM) {
+  // Create a new array, containing the colon symbol
+  uint8_t HH_MM[] = {HHMM[0], HHMM[1], 0x0A, HHMM[2], HHMM[3]};
 
   // Digits positions
-  uint8_t pos[] = {23, 17, 9, 3};
+  uint8_t pos[] = {23, 17, 13, 9, 3};
+  uint8_t posCount = sizeof(pos) / sizeof(*pos);
+
+  // The framebuffer
+  uint8_t fb[MATRICES * SCANLIMIT] = {0};
 
   // Print into the framebuffer
-  for (uint8_t d = 0; d < 4; d++) {
-    for (uint8_t l = 0; l < 5; l++) {
-      fb[pos[d] + l] |= DIGIT[HHMM[d]][l];
-    }
-  }
-
-  // Print the colon
-  for (uint8_t l = 0; l < 5; l++) {
-    fb[13 + l] |= DIGIT[10][l];
-  }
+  for (uint8_t d = 0; d < posCount; d++)
+    for (uint8_t l = 0; l < fontWidth; l++)
+      fb[pos[d] + l] |= DIGIT[HH_MM[d]][l];
 
   // Display the framebuffer
-  for (uint8_t i = 0; i < 8; i++) {
-    uint8_t data[4] = {0};
-    for (uint8_t m = 0; m < mtx.matrices; m++)
-      data[m] = fb[m * 8 + i];
-    mtx.sendAllHWSPI(i + 1, data, 4);
+  for (uint8_t i = 0; i < SCANLIMIT; i++) {
+    uint8_t data[MATRICES] = {0};
+    for (uint8_t m = 0; m < MATRICES; m++)
+      data[m] = fb[m * SCANLIMIT + i];
+    mtx.sendAllHWSPI(i + 1, data, MATRICES);
   }
-
-  // Keep the current values
-  _hh = HHMM[1];
-  _mm = HHMM[3];
 }
 
 /**
@@ -426,17 +416,17 @@ void setup() {
   Main Arduino loop
 */
 void loop() {
-  //rtc.readTime();
-  //showTime(rtc.HH, rtc.MM);
-
-  if (Serial.available()) {
+  // Check any command on serial port
+  if (Serial.available())
     command();
-  }
 
-  // Check the alarms, the Alarm 2 triggers once per minute
-  if ((rtc.checkAlarms() & 0x02) or mtxShowTime) {
-    rtc.readTimeBCD();
-    showTimeBCD(rtc.R, mtxShowTime);
-    mtxShowTime = false;
+  if (rtc.rtcOk and (millis() - rtcLastCheck > rtcDelay)) {
+    rtcLastCheck = millis();
+    // Check the alarms, the Alarm 2 triggers once per minute
+    if ((rtc.checkAlarms() & 0x02) or mtxShowTime) {
+      rtc.readTimeBCD();
+      showTimeBCD(rtc.R);
+      mtxShowTime = false;
+    }
   }
 }
