@@ -22,11 +22,11 @@
 // EEPROM
 #include <EEPROM.h>
 
-#include <LedControl.h>
+#include "DotMatrix.h"
 #include "DS3231.h"
 
 const char DEVNAME[] = "LedMatrix Clock";
-const char VERSION[] = "1.9";
+const char VERSION[] = "2.0";
 
 // Pin definitions
 const int DIN_PIN = 11; // MOSI
@@ -41,7 +41,7 @@ DS3231 rtc;
 
 // The matrix object
 #define MATRICES 4
-LedControl mtx = LedControl(DIN_PIN, CLK_PIN, CS_PIN, MATRICES);
+DotMatrix mtx = DotMatrix();
 
 // The currently selected font
 uint8_t DIGIT[16][8] = {0};
@@ -170,41 +170,6 @@ void loadFont(uint8_t font) {
 /**
   Show the time specfied in unpacked BCD (4 bytes)
 */
-void showTimeBCDCol(uint8_t* HHMM, bool force = false) {
-  // Keep previous values for hours and minutes
-  static uint8_t _hh = 255, _mm = 255;
-
-  // Skip if not changed
-  if (not force and (HHMM[1] == _hh) and (HHMM[3] == _mm)) return;
-
-  // Display the columns (the matrices are rotated)
-  for (int i = 0; i < 8; i++) {
-    uint8_t row;
-    // First matrix
-    if ((HHMM[1] != _hh) or force) {
-      row = DIGIT[HHMM[0]][i] >> 3 | DIGIT[HHMM[1]][i] << 3;
-      mtx.setColumn(2, i, row);
-    }
-    // Second matrix
-    if ((HHMM[1] != _hh) or (HHMM[3] != _mm) or force) {
-      row = DIGIT[HHMM[1]][i] >> 5 | DIGIT[HHMM[2]][i] << 2;
-      mtx.setColumn(1, i, row);
-    }
-    // Third matrix
-    if ((HHMM[3] != _mm) or force) {
-      row = DIGIT[HHMM[2]][i] >> 6 | DIGIT[HHMM[3]][i];
-      mtx.setColumn(0, i, row);
-    }
-  }
-
-  // Keep the current values
-  _hh = HHMM[1];
-  _mm = HHMM[3];
-}
-
-/**
-  Show the time specfied in unpacked BCD (4 bytes)
-*/
 void showTimeBCD(uint8_t* HHMM, bool force = false) {
   // Keep previous values for hours and minutes
   static uint8_t _hh = 255, _mm = 255;
@@ -231,10 +196,11 @@ void showTimeBCD(uint8_t* HHMM, bool force = false) {
   }
 
   // Display the framebuffer
-  for (uint8_t i = 0; i < 32; i++) {
-    uint8_t m = i >> 3;
-    uint8_t l = i & 0x07;
-    mtx.setRow(m, l, fb[i]);
+  for (uint8_t i = 0; i < 8; i++) {
+    uint8_t data[4] = {0};
+    for (uint8_t m = 0; m < mtx.matrices; m++)
+      data[m] = fb[m * 8 + i];
+    mtx.sendAllHWSPI(i + 1, data, 4);
   }
 
   // Keep the current values
@@ -293,9 +259,8 @@ void command() {
           if (buf[3] >= '0' and buf[3] <= '9')
             brgt = (brgt * 10 + (buf[3] - '0')) % 0x10;
           cfgData.brgt = brgt;
-          for (int m = 0; m < mtx.getDeviceCount(); m++)
-            // Set the brightness
-            mtx.setIntensity(m, cfgData.brgt);
+          // Set the brightness
+          mtx.intensity(cfgData.brgt);
           result = true;
         }
         else if (buf[2] == '?') {
@@ -431,14 +396,12 @@ void setup() {
   }
 
   // Init all led matrices
-  for (int address = 0; address < mtx.getDeviceCount(); address++) {
-    // Set the brightness
-    mtx.setIntensity(address, cfgData.brgt);
-    // Clear the display
-    mtx.clearDisplay(address);
-    // The MAX72XX is in power-saving mode on startup
-    mtx.shutdown(address, false);
-  }
+  //mtx.init(DIN_PIN, CLK_PIN, CS_PIN, MATRICES);
+  mtx.init(CS_PIN, MATRICES);
+  mtx.displaytest(false);
+  mtx.clear();
+  mtx.intensity(cfgData.brgt);
+  mtx.shutdown(false);
 
   // Load the font
   loadFont(cfgData.font);
@@ -457,13 +420,6 @@ void setup() {
     // January 21, 2014 at 3am you would call:
     // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
   }
-
-  for (int i = 0; i < MATRICES; i++)
-    for (int j = 0; j < 8 ; j++) {
-      mtx.setRow(i, j, 0x01);
-      delay(30);
-      mtx.setRow(i, j, 0x00);
-    }
 }
 
 /**
