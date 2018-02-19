@@ -26,5 +26,6 @@ const uint64_t* const FONTS[] = {FNTSTD, FNTBBT, FNTSKD,
                                 };
 uint8_t fontSize  = 16;
 uint8_t fontCount =  9;
+uint8_t fontWidth =  5;
 
 #endif /* FONTS_H */
