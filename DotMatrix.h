@@ -9,7 +9,8 @@
 #ifndef DOTMATRIX_H
 #define DOTMATRIX_H
 
-#define MAXMATRICES 8
+#define MAXMATRICES  8
+#define MAXSCANLIMIT 8
 
 #include "Arduino.h"
 
@@ -30,6 +31,9 @@ class DotMatrix {
     void shutdown(bool yesno);
     void displaytest(bool yesno);
     void clear();
+    void clearFrameBuffer();
+
+    void display();
 
     void sendSWSPI(uint8_t matrix, uint8_t reg, uint8_t data);
     void sendHWSPI(uint8_t matrix, uint8_t reg, uint8_t data);
@@ -44,11 +48,13 @@ class DotMatrix {
     int SPI_CLK;  /* This one is driven LOW for chip selectzion */
     int SPI_CS;   /* The maximum number of devices we use */
 
+    uint8_t matrices  = MAXMATRICES;
+    uint8_t scanlines = MAXSCANLIMIT;
 
-    uint8_t matrices;
+    uint8_t frameBuffer[MAXMATRICES * MAXSCANLIMIT] = {0};
+
   private:
-
-    uint8_t buffer[MAXMATRICES * 2] = {0};
+    uint8_t cmdBuffer[MAXMATRICES * 2] = {0};
 };
 
 #endif /* DOTMATRIX_H */

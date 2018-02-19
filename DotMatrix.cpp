@@ -68,7 +68,8 @@ void DotMatrix::intensity(uint8_t value) {
 }
 
 void DotMatrix::scanlimit(uint8_t value) {
-  sendAllHWSPI(OP_SCANLIMIT, value & 0x07);
+  scanlines = value & 0x07;
+  sendAllHWSPI(OP_SCANLIMIT, scanlines);
 }
 
 void DotMatrix::shutdown(bool yesno) {
@@ -82,25 +83,44 @@ void DotMatrix::displaytest(bool yesno) {
 }
 
 void DotMatrix::clear() {
-  for (uint8_t l = 0; l < 8; l++)
+  for (uint8_t l = 0; l < scanlines; l++)
     sendAllHWSPI(l + 1, 0x00);
 }
 
+void DotMatrix::clearFrameBuffer() {
+  memset(frameBuffer, 0, matrices * scanlines);
+}
+
+/**
+  Display the framebuffer
+*/
+void DotMatrix::display() {
+  /* Repeat for each line in matrix */
+  for (uint8_t i = 0; i < scanlines; i++) {
+    /* Compose an array containing the same line in all matrices */
+    uint8_t data[matrices] = {0};
+    /* Fill the array from the frambuffer */
+    for (uint8_t m = 0; m < matrices; m++)
+      data[m] = frameBuffer[m * scanlines + i];
+    /* Send the array */
+    sendAllHWSPI(i + 1, data, matrices);
+  }
+}
 
 void DotMatrix::sendSWSPI(uint8_t matrix, uint8_t reg, uint8_t data) {
   uint8_t offset = matrix * 2;
 
-  /* Clear the buffer */
-  memset(buffer, 0, matrices * 2);
-  /* Write the data into buffer */
-  buffer[offset] = data;
-  buffer[offset + 1] = reg;
+  /* Clear the command command buffer */
+  memset(cmdBuffer, 0, matrices * 2);
+  /* Write the data into command buffer */
+  cmdBuffer[offset] = data;
+  cmdBuffer[offset + 1] = reg;
 
   /* Chip select */
   digitalWrite(SPI_CS, LOW);
   /* Send the data */
   for (int i = matrices * 2; i > 0; i--)
-    shiftOut(SPI_MOSI, SPI_CLK, MSBFIRST, buffer[i - 1]);
+    shiftOut(SPI_MOSI, SPI_CLK, MSBFIRST, cmdBuffer[i - 1]);
   /* Latch data */
   digitalWrite(SPI_CS, HIGH);
 }
@@ -108,18 +128,18 @@ void DotMatrix::sendSWSPI(uint8_t matrix, uint8_t reg, uint8_t data) {
 void DotMatrix::sendHWSPI(uint8_t matrix, uint8_t reg, uint8_t data) {
   uint8_t offset = matrix * 2;
 
-  /* Clear the buffer */
-  memset(buffer, 0, matrices * 2);
-  /* Write the data into buffer */
-  buffer[offset] = data;
-  buffer[offset + 1] = reg;
+  /* Clear the command buffer */
+  memset(cmdBuffer, 0, matrices * 2);
+  /* Write the data into command buffer */
+  cmdBuffer[offset] = data;
+  cmdBuffer[offset + 1] = reg;
 
   /* Chip select */
   digitalWrite(SPI_CS, LOW);
   /* Send the data */
   SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
   for (int i = matrices * 2; i > 0; i--)
-    SPI.transfer(buffer[i - 1]);
+    SPI.transfer(cmdBuffer[i - 1]);
   SPI.endTransaction();
   /* Latch data */
   digitalWrite(SPI_CS, HIGH);

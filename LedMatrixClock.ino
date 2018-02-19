@@ -181,21 +181,16 @@ void showTimeBCD(uint8_t* HHMM) {
   uint8_t pos[] = {23, 17, 13, 9, 3};
   uint8_t posCount = sizeof(pos) / sizeof(*pos);
 
-  // The framebuffer
-  uint8_t fb[MATRICES * SCANLIMIT] = {0};
+  // Clear the framebuffer
+  mtx.clearFrameBuffer();
 
   // Print into the framebuffer
   for (uint8_t d = 0; d < posCount; d++)
     for (uint8_t l = 0; l < fontWidth; l++)
-      fb[pos[d] + l] |= DIGIT[HH_MM[d]][l];
+      mtx.frameBuffer[pos[d] + l] |= DIGIT[HH_MM[d]][l];
 
   // Display the framebuffer
-  for (uint8_t i = 0; i < SCANLIMIT; i++) {
-    uint8_t data[MATRICES] = {0};
-    for (uint8_t m = 0; m < MATRICES; m++)
-      data[m] = fb[m * SCANLIMIT + i];
-    mtx.sendAllHWSPI(i + 1, data, MATRICES);
-  }
+  mtx.display();
 }
 
 /**
