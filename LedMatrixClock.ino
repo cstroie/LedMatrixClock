@@ -213,19 +213,19 @@ void showTime(uint8_t hh, uint8_t mm) {
 void showTemperature() {
   // Get the temperature
   int8_t temp = rtc.readTemperature(cfgData.tmpu == 'C');
-  
+
   // Create a new array, containing the colon symbol
-  uint8_t HH_MM[] = {0x0B, abs(temp) / 10, abs(temp) % 10, 0x0D, 0x0C};
+  uint8_t HH_MM[] = {0x0B, abs(temp) / 10, abs(temp) % 10, 0x0D, cfgData.tmpu == 'C' ? 0x0C : 0x0F};
 
   // Digits positions
-  uint8_t pos[] = {26, 20, 14, 9, 3};
+  uint8_t pos[] = {27, 21, 15, 9, 3};
   uint8_t posCount = sizeof(pos) / sizeof(*pos);
 
   // Clear the framebuffer
   mtx.clearFrameBuffer();
 
   // Print into the framebuffer
-  for (uint8_t d = 0; d < posCount; d++)
+  for (uint8_t d = temp < 0 ? 0 : 1; d < posCount; d++)
     for (uint8_t l = 0; l < fontWidth; l++)
       mtx.frameBuffer[pos[d] + l] |= DIGIT[HH_MM[d]][l];
 
@@ -410,7 +410,11 @@ void setup() {
   // Init all led matrices
   //mtx.init(DIN_PIN, CLK_PIN, CS_PIN, MATRICES);
   mtx.init(CS_PIN, MATRICES);
+  mtx.displaytest(true);
+  delay(1000);
   mtx.displaytest(false);
+  mtx.scanlimit(8);
+  mtx.decodemode(0);
   mtx.clear();
   mtx.intensity(cfgData.brgt);
   mtx.shutdown(false);
