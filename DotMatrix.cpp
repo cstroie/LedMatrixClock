@@ -24,66 +24,66 @@ DotMatrix::DotMatrix() {
 
 void DotMatrix::init(int dataPin, int clkPin, int csPin, int devices) {
   /* Pin configuration */
-    SPI_MOSI=dataPin;
-    SPI_CLK=clkPin;
-    SPI_CS=csPin;
-    /* The number of matrices */
-    if(devices<=0 || devices>MAXMATRICES) devices=MAXMATRICES;
-    matrices=devices;
-    /* Configure the pins */
-    pinMode(SPI_MOSI,OUTPUT);
-    pinMode(SPI_CLK,OUTPUT);
-    pinMode(SPI_CS,OUTPUT);
-    digitalWrite(SPI_CS,HIGH);
-    /* Reference to transfer functions */
-    //sendSPI = &sendSWSPI;
-    //sendAllSPI = &sendAllSWSPI;
+  SPI_MOSI = dataPin;
+  SPI_CLK = clkPin;
+  SPI_CS = csPin;
+  /* The number of matrices */
+  if (devices <= 0 || devices > MAXMATRICES) devices = MAXMATRICES;
+  matrices = devices;
+  /* Configure the pins */
+  pinMode(SPI_MOSI, OUTPUT);
+  pinMode(SPI_CLK, OUTPUT);
+  pinMode(SPI_CS, OUTPUT);
+  digitalWrite(SPI_CS, HIGH);
+  /* Reference to transfer functions */
+  //sendSPI = &sendSWSPI;
+  //sendAllSPI = &sendAllSWSPI;
 }
 
 void DotMatrix::init(int csPin, int devices) {
   /* Pin configuration */
-    SPI_CS=csPin;
-    /* The number of matrices */
-    if(devices<=0 || devices>MAXMATRICES) devices=MAXMATRICES;
-    matrices=devices;
-    /* Configure the pins and SPI */
-    pinMode(MOSI,OUTPUT);
-    pinMode(SCK,OUTPUT);
-    pinMode(SPI_CS,OUTPUT);
+  SPI_CS = csPin;
+  /* The number of matrices */
+  if (devices <= 0 || devices > MAXMATRICES) devices = MAXMATRICES;
+  matrices = devices;
+  /* Configure the pins and SPI */
+  pinMode(MOSI, OUTPUT);
+  pinMode(SCK, OUTPUT);
+  pinMode(SPI_CS, OUTPUT);
   SPI.setBitOrder(MSBFIRST);
   SPI.setDataMode(SPI_MODE0);
   SPI.begin();
-    digitalWrite(SPI_CS,HIGH);
-    /* Reference to transfer functions */
-    //sendSPI = &sendHWSPI;
-    //sendAllSPI = &sendAllHWSPI;
+  digitalWrite(SPI_CS, HIGH);
+  /* Reference to transfer functions */
+  //sendSPI = &sendHWSPI;
+  //sendAllSPI = &sendAllHWSPI;
 }
 
 void DotMatrix::decodemode(uint8_t value) {
-  sendAllHWSPI(OP_DECODEMODE, value &0x0F);
+  sendAllHWSPI(OP_DECODEMODE, value & 0x0F);
 }
 
 void DotMatrix::intensity(uint8_t value) {
-  sendAllHWSPI(OP_INTENSITY, value &0x0F);
+  sendAllHWSPI(OP_INTENSITY, value & 0x0F);
 }
 
 void DotMatrix::scanlimit(uint8_t value) {
-  sendAllHWSPI(OP_SCANLIMIT, value &0x07);
+  sendAllHWSPI(OP_SCANLIMIT, value & 0x07);
 }
 
 void DotMatrix::shutdown(bool yesno) {
-  uint8_t data = yesno?1:0;
+  uint8_t data = yesno ? 1 : 0;
   sendAllHWSPI(OP_SHUTDOWN, data);
 }
 
 void DotMatrix::displaytest(bool yesno) {
-  uint8_t data = yesno?1:0;
+  uint8_t data = yesno ? 1 : 0;
   sendAllHWSPI(OP_DISPLAYTEST, data);
 }
 
 void DotMatrix::clear() {
-  for (uint8_t l=0; l<8; l++)
-    sendAllHWSPI(l+1, 0x00);
+  for (uint8_t l = 0; l < 8; l++)
+    sendAllHWSPI(l + 1, 0x00);
 }
 
 
@@ -91,102 +91,102 @@ void DotMatrix::sendSWSPI(uint8_t matrix, uint8_t reg, uint8_t data) {
   uint8_t offset = matrix * 2;
 
   /* Clear the buffer */
-  memset(buffer,0,matrices*2);
+  memset(buffer, 0, matrices * 2);
   /* Write the data into buffer */
   buffer[offset] = data;
-  buffer[offset+1] = reg;
+  buffer[offset + 1] = reg;
 
   /* Chip select */
-  digitalWrite(SPI_CS,LOW);
+  digitalWrite(SPI_CS, LOW);
   /* Send the data */
-  for(int i=matrices*2;i>0;i--)
-    shiftOut(SPI_MOSI,SPI_CLK,MSBFIRST,buffer[i-1]);
+  for (int i = matrices * 2; i > 0; i--)
+    shiftOut(SPI_MOSI, SPI_CLK, MSBFIRST, buffer[i - 1]);
   /* Latch data */
-  digitalWrite(SPI_CS,HIGH);
+  digitalWrite(SPI_CS, HIGH);
 }
 
 void DotMatrix::sendHWSPI(uint8_t matrix, uint8_t reg, uint8_t data) {
   uint8_t offset = matrix * 2;
 
   /* Clear the buffer */
-  memset(buffer,0,matrices*2);
+  memset(buffer, 0, matrices * 2);
   /* Write the data into buffer */
   buffer[offset] = data;
-  buffer[offset+1] = reg;
+  buffer[offset + 1] = reg;
 
   /* Chip select */
-  digitalWrite(SPI_CS,LOW);
+  digitalWrite(SPI_CS, LOW);
   /* Send the data */
   SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
-  for(int i=matrices*2;i>0;i--)
-    SPI.transfer(buffer[i-1]);
+  for (int i = matrices * 2; i > 0; i--)
+    SPI.transfer(buffer[i - 1]);
   SPI.endTransaction();
   /* Latch data */
-  digitalWrite(SPI_CS,HIGH);
+  digitalWrite(SPI_CS, HIGH);
 }
 
 /**
- Send the same data to all device, at once
+  Send the same data to all device, at once
 */
 void DotMatrix::sendAllSWSPI(uint8_t reg, uint8_t data) {
   /* Chip select */
-  digitalWrite(SPI_CS,LOW);
+  digitalWrite(SPI_CS, LOW);
   /* Send the data */
-  for(int i=matrices;i>0;i--) {
-    shiftOut(SPI_MOSI,SPI_CLK,MSBFIRST,data);
-    shiftOut(SPI_MOSI,SPI_CLK,MSBFIRST,reg);
-    }
+  for (int i = matrices; i > 0; i--) {
+    shiftOut(SPI_MOSI, SPI_CLK, MSBFIRST, data);
+    shiftOut(SPI_MOSI, SPI_CLK, MSBFIRST, reg);
+  }
   /* Latch data */
-  digitalWrite(SPI_CS,HIGH);
+  digitalWrite(SPI_CS, HIGH);
 }
 
 /**
- Send the same data to all device, at once
+  Send the same data to all device, at once
 */
 void DotMatrix::sendAllHWSPI(uint8_t reg, uint8_t data) {
   /* Chip select */
-  digitalWrite(SPI_CS,LOW);
+  digitalWrite(SPI_CS, LOW);
   /* Send the data */
   SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
-  for(int i=matrices;i>0;i--) {
+  for (int i = matrices; i > 0; i--) {
     SPI.transfer(data);
     SPI.transfer(reg);
-   }
+  }
   SPI.endTransaction();
   /* Latch data */
-  digitalWrite(SPI_CS,HIGH);
+  digitalWrite(SPI_CS, HIGH);
 }
 
 /**
- Send the data in array to device, at once
+  Send the data in array to device, at once
 */
-void DotMatrix::sendAllSWSPI(uint8_t reg, uint8_t data[], uint8_t size) {
+void DotMatrix::sendAllSWSPI(uint8_t reg, uint8_t* data, uint8_t size) {
   /* Chip select */
-  digitalWrite(SPI_CS,LOW);
+  digitalWrite(SPI_CS, LOW);
   /* Send the data */
-  for(int i=size;i>0;i--) {
-    shiftOut(SPI_MOSI,SPI_CLK,MSBFIRST,data[i-1]);
-    shiftOut(SPI_MOSI,SPI_CLK,MSBFIRST,reg);
-    }
+  for (int i = size; i > 0; i--) {
+    shiftOut(SPI_MOSI, SPI_CLK, MSBFIRST, data[i - 1]);
+    shiftOut(SPI_MOSI, SPI_CLK, MSBFIRST, reg);
+  }
   /* Latch data */
-  digitalWrite(SPI_CS,HIGH);
+  digitalWrite(SPI_CS, HIGH);
 }
 
 /**
- Send the data in array to device, at once
+  Send the data in array to device, at once
 */
-void DotMatrix::sendAllHWSPI(uint8_t reg, uint8_t data[], uint8_t size) {
+void DotMatrix::sendAllHWSPI(uint8_t reg, uint8_t* data, uint8_t size) {
   /* Chip select */
-  digitalWrite(SPI_CS,LOW);
+  digitalWrite(SPI_CS, LOW);
   /* Send the data */
   SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
-  for(int i=size;i>0;i--) {
-    SPI.transfer(data[i-1]);
+  for (int i = size; i > 0; i--) {
+    SPI.transfer(data[i - 1]);
     SPI.transfer(reg);
-   }
+  }
   SPI.endTransaction();
   /* Latch data */
-  digitalWrite(SPI_CS,HIGH);
+  digitalWrite(SPI_CS, HIGH);
 }
 
 
