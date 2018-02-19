@@ -50,31 +50,32 @@ bool DS3231::init(uint8_t twRTC, bool twInit) {
     }
   */
 
-  // Set Alarm 2 to trigger every minute
-  Wire.beginTransmission(rtcAddr);
-  // Alarm 2 minutes register
-  Wire.write(0x0B);
-  Wire.write(0x80); // 0x0B
-  Wire.write(0x80); // 0x0C
-  Wire.write(0x80); // 0x0D
-  Wire.endTransmission();
+  if (rtcOk) {
+    // Set Alarm 2 to trigger every minute
+    Wire.beginTransmission(rtcAddr);
+    // Alarm 2 minutes register
+    Wire.write(0x0B);
+    Wire.write(0x80); // 0x0B
+    Wire.write(0x80); // 0x0C
+    Wire.write(0x80); // 0x0D
+    Wire.endTransmission();
 
-  // Check the control register
-  Wire.beginTransmission(rtcAddr);
-  // Control Register
-  Wire.write(0x0E);
-  Wire.endTransmission();
-  // Request one byte
-  Wire.requestFrom(rtcAddr, (uint8_t)1);
-  uint8_t x = Wire.read();
-  // Enable Alarm 2 INT
-  Wire.beginTransmission(rtcAddr);
-  // Control Register
-  Wire.write(0x0E);
-  // Set INTCN and A2IE bits
-  Wire.write(x | 0x06);
-  Wire.endTransmission();
-
+    // Check the control register
+    Wire.beginTransmission(rtcAddr);
+    // Control Register
+    Wire.write(0x0E);
+    Wire.endTransmission();
+    // Request one byte
+    Wire.requestFrom(rtcAddr, (uint8_t)1);
+    uint8_t x = Wire.read();
+    // Enable Alarm 2 INT
+    Wire.beginTransmission(rtcAddr);
+    // Control Register
+    Wire.write(0x0E);
+    // Set INTCN and A2IE bits
+    Wire.write(x | 0x06);
+    Wire.endTransmission();
+  }
   return rtcOk;
 }
 
