@@ -208,6 +208,33 @@ void showTime(uint8_t hh, uint8_t mm) {
 }
 
 /**
+  Show the temperature
+*/
+void showTemperature() {
+  // Get the temperature
+  int8_t temp = rtc.readTemperature(cfgData.tmpu == 'C');
+  
+  // Create a new array, containing the colon symbol
+  uint8_t HH_MM[] = {0x0B, abs(temp) / 10, abs(temp) % 10, 0x0D, 0x0C};
+
+  // Digits positions
+  uint8_t pos[] = {26, 20, 14, 9, 3};
+  uint8_t posCount = sizeof(pos) / sizeof(*pos);
+
+  // Clear the framebuffer
+  mtx.clearFrameBuffer();
+
+  // Print into the framebuffer
+  for (uint8_t d = 0; d < posCount; d++)
+    for (uint8_t l = 0; l < fontWidth; l++)
+      mtx.frameBuffer[pos[d] + l] |= DIGIT[HH_MM[d]][l];
+
+  // Display the framebuffer
+  mtx.display();
+}
+
+
+/**
   Basic serial data parsing for setting time
 
 */
@@ -405,6 +432,9 @@ void setup() {
     // January 21, 2014 at 3am you would call:
     // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
   }
+
+  showTemperature();
+  delay(1000);
 }
 
 /**
