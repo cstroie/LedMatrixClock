@@ -22,7 +22,6 @@ enum DotMatrixOps {OP_NOOP, OP_DIGIT0, OP_DIGIT1, OP_DIGIT2, OP_DIGIT3, OP_DIGIT
 class DotMatrix {
   public:
     DotMatrix();
-    void init(int dataPin, int clkPin, int csPin, int devices);
     void init(int csPin, int devices);
 
     void decodemode(uint8_t value);
@@ -35,18 +34,10 @@ class DotMatrix {
 
     void display();
 
-    void sendSWSPI(uint8_t matrix, uint8_t reg, uint8_t data);
-    void sendHWSPI(uint8_t matrix, uint8_t reg, uint8_t data);
-    //void (*sendSPI)(uint8_t,uint8_t,uint8_t);
-    void sendAllSWSPI(uint8_t reg, uint8_t data);
-    void sendAllHWSPI(uint8_t reg, uint8_t data);
-    //void (*sendAllSPI)(uint8_t,uint8_t);
-    void sendAllSWSPI(uint8_t reg, uint8_t* data, uint8_t size);
-    void sendAllHWSPI(uint8_t reg, uint8_t* data, uint8_t size);
+    void sendSPI(uint8_t matrix, uint8_t reg, uint8_t data);
+    void sendAllSPI(uint8_t reg, uint8_t data);
+    void sendAllSPI(uint8_t reg, uint8_t* data, uint8_t size);
 
-    int SPI_MOSI; /* The clock is signaled on this pin */
-    int SPI_CLK;  /* This one is driven LOW for chip selectzion */
-    int SPI_CS;   /* The maximum number of devices we use */
 
     uint8_t matrices  = MAXMATRICES;
     uint8_t scanlines = MAXSCANLIMIT;
@@ -55,6 +46,7 @@ class DotMatrix {
 
   private:
     uint8_t cmdBuffer[MAXMATRICES * 2] = {0};
+    int SPI_CS;   /* Chip Select pin */
 };
 
 #endif /* DOTMATRIX_H */
