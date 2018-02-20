@@ -27,11 +27,9 @@
 #include "Fonts.h"
 
 const char DEVNAME[] = "LedMatrix Clock";
-const char VERSION[] = "2.0";
+const char VERSION[] = "2.1";
 
 // Pin definitions
-const int DIN_PIN = 11; // MOSI
-const int CLK_PIN = 13; // SCK
 const int CS_PIN  = 10; // ~SS
 
 // The RTC
@@ -143,6 +141,15 @@ bool cfgReadEE() {
   // Compute the CRC8 checksum of the read data
   uint8_t crc8 = cfgEECRC(cfgData);
   return (cfgData.crc8 == crc8);
+}
+
+/**
+  Reset the configuration to factory defaults
+*/
+bool cfgDefaults() {
+  cfgData.font = 1;
+  cfgData.brgt = 1;
+  cfgData.tmpu = 'C';
 }
 
 /**
@@ -308,7 +315,8 @@ void command() {
     else if (buf[0] == '&') {
       switch (buf[1]) {
         case 'F':
-          // Factory default
+          // Factory defaults
+          cfgDefaults();
           result = true;
           break;
         case 'V':
@@ -348,6 +356,8 @@ void command() {
           uint8_t   min   = Serial.parseInt();
           uint8_t   sec   = Serial.parseInt();
           if (year != 0 and month != 0 and day != 0) {
+            // The date is quite valid, set the clock to 00:00:00 if not
+            // specified
             rtc.writeDateTime(sec, min, hour, day, month, year);
             // TODO Check
             result = true;
@@ -363,6 +373,7 @@ void command() {
       Serial.println(F("AT?"));
       Serial.println(F("AT*Fn"));
       Serial.println(F("AT*Bn"));
+      Serial.println(F("AT*Tn"));
       Serial.println(F("AT$T=\"YYYY/MM/DD HH:MM:SS\""));
       result = true;
     }
@@ -402,15 +413,9 @@ void setup() {
   printInfo();
 
   // Read the configuration from EEPROM
-  if (not cfgReadEE()) {
-    // Invalid data, use some defaults
-    cfgData.font = 1;
-    cfgData.brgt = 1;
-    cfgData.tmpu = 'C';
-  }
+  if (not cfgReadEE()) cfgDefaults();
 
   // Init all led matrices
-  //mtx.init(DIN_PIN, CLK_PIN, CS_PIN, MATRICES);
   mtx.init(CS_PIN, MATRICES);
   mtx.displaytest(true);
   delay(1000);
@@ -440,7 +445,7 @@ void setup() {
   }
 
   showTemperature();
-  delay(1000);
+  delay(2000);
 }
 
 /**
