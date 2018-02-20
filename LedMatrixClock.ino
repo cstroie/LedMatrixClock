@@ -249,7 +249,11 @@ void command() {
         // Font
         if (buf[2] >= '0' and buf[2] <= '9') {
           // Set font
-          cfgData.font = buf[2] - '0';
+          uint8_t font = buf[2] - '0';
+          // Read one more char
+          if (buf[3] >= '0' and buf[3] <= '9')
+            font = (font * 10 + (buf[3] - '0')) % fontCount;
+          cfgData.font = font;
           loadFont(cfgData.font);
           result = true;
         }
