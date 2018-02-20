@@ -24,6 +24,7 @@
 
 #include "DotMatrix.h"
 #include "DS3231.h"
+#include "Fonts.h"
 
 const char DEVNAME[] = "LedMatrix Clock";
 const char VERSION[] = "2.0";
@@ -32,9 +33,6 @@ const char VERSION[] = "2.0";
 const int DIN_PIN = 11; // MOSI
 const int CLK_PIN = 13; // SCK
 const int CS_PIN  = 10; // ~SS
-
-// Load the fonts
-#include "fonts.h"
 
 // The RTC
 DS3231 rtc;
