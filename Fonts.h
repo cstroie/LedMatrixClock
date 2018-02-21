@@ -314,7 +314,7 @@ const uint64_t* const FONTS[] = {FNTSTD, FNTBBT, FNTSKD,
                                  FNTNOK, FNTMDN, FNTTLO,
                                  FNTHND
                                 };
-uint8_t fontSize  = sizeof(FONTS[0]) / sizeof(*FONTS[0]);
+uint8_t fontSize  = sizeof(FNTSTD) / sizeof(*FNTSTD);
 uint8_t fontCount = sizeof(FONTS) / sizeof(*FONTS);
 uint8_t fontWidth = 5;
 
