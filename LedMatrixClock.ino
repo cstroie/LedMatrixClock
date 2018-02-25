@@ -291,7 +291,7 @@ void command() {
           result = true;
         }
       }
-      else if (buf[1] == 'T') {
+      else if (buf[1] == 'U') {
         // Temperature
         if (buf[2] >= '0' and buf[2] <= '1') {
           // Set temperature units
@@ -300,7 +300,7 @@ void command() {
         }
         else if (buf[2] == '?') {
           // Get temperature units
-          Serial.print(F("*T: "));
+          Serial.print(F("*U: "));
           Serial.println(cfgData.tmpu == 'C' ? "C" : "F");
           result = true;
         }
@@ -311,42 +311,10 @@ void command() {
           result = true;
         }
       }
-    }
-    else if (buf[0] == '&') {
-      switch (buf[1]) {
-        case 'F':
-          // Factory defaults
-          cfgDefaults();
-          result = true;
-          break;
-        case 'V':
-          // Show the configuration
-          Serial.print(F("*F: "));
-          Serial.println(cfgData.font);
-          Serial.print(F("*B: "));
-          Serial.println(cfgData.brgt);
-          Serial.print(F("*T: "));
-          Serial.println(cfgData.tmpu == 'C' ? "C" : "F");
-          result = true;
-          break;
-        case 'W':
-          // Store the configuration
-          cfgWriteEE();
-          result = true;
-          break;
-        case 'Y':
-          // Read the configuration
-          cfgReadEE();
-          result = true;
-          break;
-      }
-    }
-    else if (buf[0] == '$') {
-      // One char and quoted string value
-      if (buf[1] == 'T') {
+      else if (buf[1] == 'T') {
         // Time and date
-        //  Usage: AT$T="YYYY/MM/DD HH:MM:SS" or, using date(1),
-        //  ( sleep 2 && date "+AT\$T=\"%Y/%m/%d %H:%M:%S\"" ) > /dev/ttyUSB0
+        //  Usage: AT*T="YYYY/MM/DD HH:MM:SS" or, using date(1),
+        //  ( sleep 2 && date "+AT\*T=\"%Y/%m/%d %H:%M:%S\"" ) > /dev/ttyUSB0
         if (buf[2] == '=' and buf[3] == '"') {
           // Set time and date
           uint16_t  year  = Serial.parseInt();
@@ -369,12 +337,44 @@ void command() {
         }
       }
     }
+    else if (buf[0] == '&') {
+      switch (buf[1]) {
+        case 'F':
+          // Factory defaults
+          cfgDefaults();
+          result = true;
+          break;
+        case 'V':
+          // Show the configuration
+          Serial.print(F("*F: "));
+          Serial.println(cfgData.font);
+          Serial.print(F("*B: "));
+          Serial.println(cfgData.brgt);
+          Serial.print(F("*U: "));
+          Serial.println(cfgData.tmpu == 'C' ? "C" : "F");
+          result = true;
+          break;
+        case 'W':
+          // Store the configuration
+          cfgWriteEE();
+          result = true;
+          break;
+        case 'Y':
+          // Read the configuration
+          cfgReadEE();
+          result = true;
+          break;
+      }
+    }
+    else if (buf[0] == '$') {
+      // One char and quoted string value
+    }
     else if (buf[0] == '?' and len == 1) {
       Serial.println(F("AT?"));
       Serial.println(F("AT*Fn"));
       Serial.println(F("AT*Bn"));
-      Serial.println(F("AT*Tn"));
-      Serial.println(F("AT$T=\"YYYY/MM/DD HH:MM:SS\""));
+      Serial.println(F("AT*Un"));
+      Serial.println(F("AT*T=\"YYYY/MM/DD HH:MM:SS\""));
       result = true;
     }
     else if (buf[0] == 'I' and len == 1) {
@@ -456,7 +456,7 @@ void loop() {
   if (Serial.available())
     command();
 
-  if (rtc.rtcOk and (millis() - rtcLastCheck > rtcDelay)) {
+  if ((rtc.rtcOk and (millis() - rtcLastCheck > rtcDelay))  or mtxShowTime) {
     rtcLastCheck = millis();
     // Check the alarms, the Alarm 2 triggers once per minute
     if ((rtc.checkAlarms() & 0x02) or mtxShowTime) {
