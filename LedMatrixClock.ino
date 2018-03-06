@@ -240,8 +240,7 @@ void showTemperature() {
 
 
 /**
-  Basic serial data parsing for setting time
-
+  AT-Hayes style command processing
 */
 void command() {
   char buf[35] = "";
@@ -375,6 +374,10 @@ void command() {
       Serial.println(F("AT*Bn"));
       Serial.println(F("AT*Un"));
       Serial.println(F("AT*T=\"YYYY/MM/DD HH:MM:SS\""));
+      Serial.println(F("AT&F"));
+      Serial.println(F("AT&V"));
+      Serial.println(F("AT&W"));
+      Serial.println(F("AT&Y"));
       result = true;
     }
     else if (buf[0] == 'I' and len == 1) {
@@ -435,7 +438,7 @@ void setup() {
     Serial.println(F("DS3231 RTC missing"));
   }
 
-  if (rtc.lostPower()) {
+  if (rtc.rtcOk and rtc.lostPower()) {
     Serial.println(F("RTC lost power, lets set the time!"));
     // The next line sets the RTC to the date & time this sketch was compiled
     //rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
@@ -444,8 +447,10 @@ void setup() {
     // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
   }
 
-  showTemperature();
-  delay(2000);
+  if (rtc.rtcOk) {
+    showTemperature();
+    delay(2000);
+  }
 }
 
 /**
