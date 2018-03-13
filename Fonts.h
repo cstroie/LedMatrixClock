@@ -306,14 +306,13 @@ const uint64_t FNTHND[] PROGMEM = {
   0x0808083808089060,
 };
 
-const uint64_t* const FONTS[] = {FNTSTD, FNTBBT, FNTSKD,
-                                 FNTBLD, FNTNCS, FNTLTW,
-                                 FNTHLV, FNTSQR, FNTSPX,
-                                 FNTNOK, FNTMDN, FNTTLO,
+const uint64_t* const FONTS[] = {FNTSTD, FNTBBT, FNTSKD, FNTBLD,
+                                 FNTNCS, FNTLTW, FNTHLV, FNTSQR,
+                                 FNTSPX, FNTNOK, FNTMDN, FNTTLO,
                                  FNTHND
                                 };
-uint8_t fontSize  = sizeof(FNTSTD) / sizeof(*FNTSTD);
-uint8_t fontCount = sizeof(FONTS) / sizeof(*FONTS);
-uint8_t fontWidth = 5;
+const uint8_t fontSize  = sizeof(FNTSTD) / sizeof(*FNTSTD); // Characters in font
+const uint8_t fontCount = sizeof(FONTS) / sizeof(*FONTS);   // Number of fonts
+const uint8_t fontWidth = 5;                                // Character width
 
 #endif /* FONTS_H */
