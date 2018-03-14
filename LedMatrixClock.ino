@@ -44,10 +44,11 @@ DotMatrix mtx = DotMatrix();
 
 // Define the configuration type
 struct cfgEE_t {
-  uint8_t font; // Display font
-  uint8_t brgt; // Display brightness
-  uint8_t tmpu; // Temperature units
-  uint8_t crc8; // CRC8
+  uint8_t font: 4; // Display font
+  uint8_t brgt: 4; // Display brightness
+  bool    tmpu: 1; // Temperature units
+  bool    dst:  1; // DST flag
+  uint8_t crc8;   // CRC8
 };
 // The global configuration structure
 struct cfgEE_t  cfgData;
@@ -145,7 +146,8 @@ bool cfgReadEE() {
 bool cfgDefaults() {
   cfgData.font = 1;
   cfgData.brgt = 1;
-  cfgData.tmpu = 'C';
+  cfgData.tmpu = true;
+  cfgData.dst  = false;
 }
 
 /**
@@ -189,10 +191,10 @@ void showTime(uint8_t hh, uint8_t mm) {
 */
 void showTemperature() {
   // Get the temperature
-  int8_t temp = rtc.readTemperature(cfgData.tmpu == 'C');
+  int8_t temp = rtc.readTemperature(cfgData.tmpu);
 
   // Create a new array, containing the degree symbol and units letter
-  uint8_t data[] = {0x0B, abs(temp) / 10, abs(temp) % 10, 0x0D, cfgData.tmpu == 'C' ? 0x0C : 0x0F};
+  uint8_t data[] = {0x0B, abs(temp) / 10, abs(temp) % 10, 0x0D, cfgData.tmpu ? 0x0C : 0x0F};
 
   // Digits positions and count
   uint8_t pos[] = {27, 21, 15, 9, 3};
@@ -265,19 +267,19 @@ void command() {
         // Temperature
         if (buf[2] >= '0' and buf[2] <= '1') {
           // Set temperature units
-          cfgData.tmpu = buf[2] == '1' ? 'C' : 'F';
+          cfgData.tmpu = buf[2] == '1' ? true : false;
           result = true;
         }
         else if (buf[2] == '?') {
           // Get temperature units
           Serial.print(F("*U: "));
-          Serial.println(cfgData.tmpu == 'C' ? "C" : "F");
+          Serial.println(cfgData.tmpu ? "C" : "F");
           result = true;
         }
         else if (len == 2) {
           // Show the temperature
-          Serial.print((int)rtc.readTemperature(cfgData.tmpu == 'C'));
-          Serial.println(cfgData.tmpu == 'C' ? "C" : "F");
+          Serial.print((int)rtc.readTemperature(cfgData.tmpu));
+          Serial.println(cfgData.tmpu ? "C" : "F");
           result = true;
         }
       }
@@ -321,7 +323,7 @@ void command() {
           Serial.print(F("*B: "));
           Serial.println(cfgData.brgt);
           Serial.print(F("*U: "));
-          Serial.println(cfgData.tmpu == 'C' ? "C" : "F");
+          Serial.println(cfgData.tmpu ? "C" : "F");
           result = true;
           break;
         case 'W':
