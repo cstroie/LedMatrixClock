@@ -24,7 +24,6 @@
 
 #include "DotMatrix.h"
 #include "DS3231.h"
-#include "Fonts.h"
 
 const char DEVNAME[] = "LedMatrix Clock";
 const char VERSION[] = "2.1";
@@ -34,16 +33,13 @@ const int CS_PIN  = 10; // ~SS
 
 // The RTC
 DS3231 rtc;
-uint32_t rtcDelay = 1000UL;
-uint32_t rtcLastCheck = 0UL;
+uint32_t rtcDelayCheck  = 1000UL;
+uint32_t rtcLastCheck   = 0UL;
 
 // The matrix object
 #define MATRICES  4
 #define SCANLIMIT 8
 DotMatrix mtx = DotMatrix();
-
-// The currently selected font
-uint8_t DIGIT[16][8] = {0};
 
 
 // Define the configuration type
@@ -153,49 +149,25 @@ bool cfgDefaults() {
 }
 
 /**
-  Load the specified font into RAM
-
-  @param font the font id
-*/
-void loadFont(uint8_t font) {
-  uint8_t chrbuf[8] = {0};
-  font %= fontCount;
-  // Load each character into RAM
-  for (int i = 0; i < fontSize; i++) {
-    // Load into temporary buffer
-    memcpy_P(&chrbuf, &FONTS[font][i], 8);
-    // Rotate
-    for (uint8_t j = 0; j < 8; j++) {
-      for (uint8_t k = 0; k < 8; k++) {
-        DIGIT[i][7 - k] <<= 1;
-        DIGIT[i][7 - k] |= (chrbuf[j] & 0x01);
-        chrbuf[j] >>= 1;
-      }
-    }
-  }
-}
-
-/**
   Show the time specfied in unpacked BCD (4 bytes)
 */
 void showTimeBCD(uint8_t* HHMM) {
   // Create a new array, containing the colon symbol
   uint8_t HH_MM[] = {HHMM[0], HHMM[1], 0x0A, HHMM[2], HHMM[3]};
 
-  // Digits positions
+  // Digits positions and count
   uint8_t pos[] = {23, 17, 13, 9, 3};
   uint8_t posCount = sizeof(pos) / sizeof(*pos);
 
   // Clear the framebuffer
-  mtx.clearFrameBuffer();
+  mtx.fbClear();
 
-  // Print into the framebuffer
+  // Print on framebuffer
   for (uint8_t d = 0; d < posCount; d++)
-    for (uint8_t l = 0; l < fontWidth; l++)
-      mtx.frameBuffer[pos[d] + l] |= DIGIT[HH_MM[d]][l];
+    mtx.fbPrint(pos[d], HH_MM[d]);
 
   // Display the framebuffer
-  mtx.display();
+  mtx.fbDisplay();
 }
 
 /**
@@ -219,23 +191,22 @@ void showTemperature() {
   // Get the temperature
   int8_t temp = rtc.readTemperature(cfgData.tmpu == 'C');
 
-  // Create a new array, containing the colon symbol
-  uint8_t HH_MM[] = {0x0B, abs(temp) / 10, abs(temp) % 10, 0x0D, cfgData.tmpu == 'C' ? 0x0C : 0x0F};
+  // Create a new array, containing the degree symbol and units letter
+  uint8_t data[] = {0x0B, abs(temp) / 10, abs(temp) % 10, 0x0D, cfgData.tmpu == 'C' ? 0x0C : 0x0F};
 
-  // Digits positions
+  // Digits positions and count
   uint8_t pos[] = {27, 21, 15, 9, 3};
   uint8_t posCount = sizeof(pos) / sizeof(*pos);
 
   // Clear the framebuffer
-  mtx.clearFrameBuffer();
+  mtx.fbClear();
 
   // Print into the framebuffer
   for (uint8_t d = temp < 0 ? 0 : 1; d < posCount; d++)
-    for (uint8_t l = 0; l < fontWidth; l++)
-      mtx.frameBuffer[pos[d] + l] |= DIGIT[HH_MM[d]][l];
+    mtx.fbPrint(pos[d], data[d]);
 
   // Display the framebuffer
-  mtx.display();
+  mtx.fbDisplay();
 }
 
 
@@ -260,7 +231,7 @@ void command() {
           if (buf[3] >= '0' and buf[3] <= '9')
             font = (font * 10 + (buf[3] - '0')) % fontCount;
           cfgData.font = font;
-          loadFont(cfgData.font);
+          mtx.loadFont(cfgData.font);
           result = true;
         }
         else if (buf[2] == '?') {
@@ -419,19 +390,17 @@ void setup() {
   if (not cfgReadEE()) cfgDefaults();
 
   // Init all led matrices
-  mtx.init(CS_PIN, MATRICES);
+  mtx.init(CS_PIN, MATRICES, SCANLIMIT);
   mtx.displaytest(true);
   delay(1000);
   mtx.displaytest(false);
-  mtx.scanlimit(8);
   mtx.decodemode(0);
   mtx.clear();
   mtx.intensity(cfgData.brgt);
   mtx.shutdown(false);
 
   // Load the font
-  loadFont(cfgData.font);
-
+  mtx.loadFont(cfgData.font);
 
   // Init and configure RTC
   if (! rtc.init()) {
@@ -461,7 +430,7 @@ void loop() {
   if (Serial.available())
     command();
 
-  if ((rtc.rtcOk and (millis() - rtcLastCheck > rtcDelay))  or mtxShowTime) {
+  if ((rtc.rtcOk and (millis() - rtcLastCheck > rtcDelayCheck)) or mtxShowTime) {
     rtcLastCheck = millis();
     // Check the alarms, the Alarm 2 triggers once per minute
     if ((rtc.checkAlarms() & 0x02) or mtxShowTime) {
