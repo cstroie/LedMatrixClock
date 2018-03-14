@@ -26,7 +26,7 @@
 #include "DS3231.h"
 
 const char DEVNAME[] = "LedMatrix Clock";
-const char VERSION[] = "2.1";
+const char VERSION[] = "2.2";
 
 // Pin definitions
 const int CS_PIN  = 10; // ~SS

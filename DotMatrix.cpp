@@ -22,12 +22,13 @@
 DotMatrix::DotMatrix() {
 }
 
-void DotMatrix::init(int csPin, int devices) {
+void DotMatrix::init(uint8_t csPin, uint8_t devices, uint8_t lines) {
   /* Pin configuration */
   SPI_CS = csPin;
   /* The number of matrices */
-  if (devices <= 0 || devices > MAXMATRICES) devices = MAXMATRICES;
-  matrices = devices;
+  if (devices <= 0 || devices > MAXMATRICES)
+    devices = MAXMATRICES;
+  _devices = devices;
   /* Configure the pins and SPI */
   pinMode(MOSI, OUTPUT);
   pinMode(SCK, OUTPUT);
@@ -36,6 +37,8 @@ void DotMatrix::init(int csPin, int devices) {
   SPI.setDataMode(SPI_MODE0);
   SPI.begin();
   digitalWrite(SPI_CS, HIGH);
+  /* Set the scan limit */
+  this->scanlimit(lines);
 }
 
 void DotMatrix::decodemode(uint8_t value) {
@@ -47,8 +50,8 @@ void DotMatrix::intensity(uint8_t value) {
 }
 
 void DotMatrix::scanlimit(uint8_t value) {
-  scanlines = ((value - 1) & 0x07) + 1;
-  sendAllSPI(OP_SCANLIMIT, scanlines - 1);
+  _scanlimit = ((value - 1) & 0x07) + 1;
+  sendAllSPI(OP_SCANLIMIT, _scanlimit - 1);
 }
 
 void DotMatrix::shutdown(bool yesno) {
@@ -62,28 +65,65 @@ void DotMatrix::displaytest(bool yesno) {
 }
 
 void DotMatrix::clear() {
-  for (uint8_t l = 0; l < scanlines; l++)
+  for (uint8_t l = 0; l < _scanlimit; l++)
     sendAllSPI(l + 1, 0x00);
 }
 
-void DotMatrix::clearFrameBuffer() {
-  memset(frameBuffer, 0, matrices * scanlines);
+/**
+  Load the specified font into RAM
+
+  @param font the font id
+*/
+void DotMatrix::loadFont(uint8_t font) {
+  uint8_t chrbuf[8] = {0};
+  font %= fontCount;
+  // Load each character into RAM
+  for (int i = 0; i < fontSize; i++) {
+    // Load into temporary buffer
+    memcpy_P(&chrbuf, &FONTS[font][i], 8);
+    // Rotate
+    for (uint8_t j = 0; j < 8; j++) {
+      for (uint8_t k = 0; k < 8; k++) {
+        FONT[i][7 - k] <<= 1;
+        FONT[i][7 - k] |= (chrbuf[j] & 0x01);
+        chrbuf[j] >>= 1;
+      }
+    }
+  }
+}
+
+/**
+  Clear the framebuffer
+*/
+void DotMatrix::fbClear() {
+  memset(fbData, 0, _devices * _scanlimit);
 }
 
 /**
   Display the framebuffer
 */
-void DotMatrix::display() {
+void DotMatrix::fbDisplay() {
   /* Repeat for each line in matrix */
-  for (uint8_t i = 0; i < scanlines; i++) {
+  for (uint8_t i = 0; i < _scanlimit; i++) {
     /* Compose an array containing the same line in all matrices */
-    uint8_t data[matrices] = {0};
+    uint8_t data[_devices] = {0};
     /* Fill the array from the frambuffer */
-    for (uint8_t m = 0; m < matrices; m++)
-      data[m] = frameBuffer[m * scanlines + i];
+    for (uint8_t m = 0; m < _devices; m++)
+      data[m] = fbData[m * _scanlimit + i];
     /* Send the array */
-    sendAllSPI(i + 1, data, matrices);
+    sendAllSPI(i + 1, data, _devices);
   }
+}
+
+/**
+  Print a charater at the specified position
+
+  @param pos position (rightmost)
+  @param digit the character/digit to print
+*/
+void DotMatrix::fbPrint(uint8_t pos, uint8_t digit) {
+  for (uint8_t l = 0; l < fontWidth; l++)
+    fbData[pos + l] |= FONT[digit][l];
 }
 
 /**
@@ -93,7 +133,7 @@ void DotMatrix::sendSPI(uint8_t matrix, uint8_t reg, uint8_t data) {
   uint8_t offset = matrix * 2;
 
   /* Clear the command buffer */
-  memset(cmdBuffer, 0, matrices * 2);
+  memset(cmdBuffer, 0, _devices * 2);
   /* Write the data into command buffer */
   cmdBuffer[offset] = data;
   cmdBuffer[offset + 1] = reg;
@@ -102,7 +142,7 @@ void DotMatrix::sendSPI(uint8_t matrix, uint8_t reg, uint8_t data) {
   digitalWrite(SPI_CS, LOW);
   /* Send the data */
   SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
-  for (int i = matrices * 2; i > 0; i--)
+  for (int i = _devices * 2; i > 0; i--)
     SPI.transfer(cmdBuffer[i - 1]);
   SPI.endTransaction();
   /* Latch data */
@@ -117,7 +157,7 @@ void DotMatrix::sendAllSPI(uint8_t reg, uint8_t data) {
   digitalWrite(SPI_CS, LOW);
   /* Send the data */
   SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
-  for (int i = matrices; i > 0; i--) {
+  for (int i = _devices; i > 0; i--) {
     SPI.transfer(reg);
     SPI.transfer(data);
   }
