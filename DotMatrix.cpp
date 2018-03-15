@@ -1,17 +1,29 @@
 /**
-  DotMatrix.cpp
+  DotMatrix.cpp - MAX7219/MAX7221 SPI interface
 
-  Basic code for using Maxim MAX7219/MAX7221 with Arduino.
-  Wire the Arduino and the MAX7219/MAX7221 together as follows:
+  Copyright (C) 2017-2018 Costin STROIE <costinstroie@eridu.eu.org>
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+  Wiring
+
   | Arduino   | MAX7219/MAX7221 |
   | --------- | --------------- |
-  | MOSI (11) | DIN (1)         |
-  | SCK (13)  | CLK (13)        |
-  | I/O (7)*  | LOAD/CS (12)    |
-
-  Copyright (c) 2017-2018 Costin STROIE <costinstroie@eridu.eu.org>
-
-  This file is part of LedMatrixClock.
+  | MOSI (11) | DIN      (1)    |
+  | SCK  (13) | CLK     (13)    |
+  | I/O   (7) | LOAD/CS (12)    |
 */
 
 #include "Arduino.h"
