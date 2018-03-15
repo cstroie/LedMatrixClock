@@ -42,11 +42,19 @@ DotMatrix mtx = DotMatrix();
 
 // Define the configuration type
 struct cfgEE_t {
-  uint8_t font: 4; // Display font
-  uint8_t brgt: 4; // Display brightness
-  bool    tmpu: 1; // Temperature units
-  bool    dst:  1; // DST flag
-  uint8_t crc8;   // CRC8
+  union {
+    struct {
+      uint8_t font: 4;  // Display font
+      uint8_t brgt: 4;  // Display brightness (manual)
+      uint8_t mnbr: 4;  // Minimal display brightness (auto)
+      uint8_t mxbr: 4;  // Minimum display brightness (auto)
+      bool    aubr: 1;  // Manual/Auto display brightness adjustment
+      bool    tmpu: 1;  // Temperature units
+      bool    dst:  1;  // DST flag
+    };
+    uint8_t data[4];    // We use 4 bytes in the structure
+  };
+  uint8_t crc8;         // CRC8
 };
 // The global configuration structure
 struct cfgEE_t  cfgData;
@@ -87,9 +95,8 @@ uint8_t crc_8(uint8_t inCrc, uint8_t inData) {
 uint8_t cfgEECRC(struct cfgEE_t cfg) {
   // Compute the CRC8 checksum of the data
   uint8_t crc8 = 0;
-  crc8 = crc_8(crc8, cfg.font);
-  crc8 = crc_8(crc8, cfg.brgt);
-  crc8 = crc_8(crc8, cfg.tmpu);
+  for (uint8_t i = 0; i < sizeof(cfg) - 1; i++)
+    crc8 = crc_8(crc8, cfgData.data[i]);
   return crc8;
 }
 
@@ -101,14 +108,16 @@ uint8_t cfgEECRC(struct cfgEE_t cfg) {
   @return true if equal
 */
 bool cfgCompare(struct cfgEE_t cfg1, struct cfgEE_t cfg2) {
-  // Compute the CRC8 checksum of the data
-  if ((cfg1.font == cfg2.font) and
-      (cfg1.brgt == cfg2.brgt) and
-      (cfg1.tmpu == cfg2.tmpu) and
-      (cfg1.crc8 == cfg2.crc8))
-    return true;
+  bool result = true;
+  // Check CRC first
+  if (cfg1.crc8 != cfg2.crc8)
+    result = false;
   else
-    return false;
+    // Compare the overlayed array of the two structures
+    for (uint8_t i = 0; i < sizeof(cfg1) - 1; i++)
+      if (cfg1.data[i] != cfg2.data[i])
+        result = false;
+  return result;
 }
 
 /**
@@ -119,7 +128,7 @@ void cfgWriteEE() {
   struct cfgEE_t cfgTemp;
   // Read the data from EEPROM
   EEPROM.get(cfgEEAddress, cfgTemp);
-  // Compute the CRC8 checksum of the read data
+  // Compute the CRC8 checksum of the current data
   cfgData.crc8 = cfgEECRC(cfgData);
   // Compare the new and the stored data
   if (not cfgCompare(cfgData, cfgTemp))
@@ -130,11 +139,13 @@ void cfgWriteEE() {
 /**
   Read the configuration from EEPROM, along with CRC8, and verify
 */
-bool cfgReadEE() {
+bool cfgReadEE(bool ignoreErrors = false) {
   // Read the data from EEPROM
   EEPROM.get(cfgEEAddress, cfgData);
   // Compute the CRC8 checksum of the read data
   uint8_t crc8 = cfgEECRC(cfgData);
+  if (cfgData.crc8 != crc8 and not ignoreErrors)
+    cfgDefaults();
   return (cfgData.crc8 == crc8);
 }
 
@@ -142,10 +153,27 @@ bool cfgReadEE() {
   Reset the configuration to factory defaults
 */
 bool cfgDefaults() {
-  cfgData.font = 1;
-  cfgData.brgt = 1;
-  cfgData.tmpu = true;
-  cfgData.dst  = false;
+  cfgData.font = 0x01;
+  cfgData.brgt = 0x01;
+  cfgData.mnbr = 0x00;
+  cfgData.mxbr = 0x0F;
+  cfgData.aubr = 0x01;
+  cfgData.tmpu = 0x01;
+  cfgData.dst  = 0x00;
+};
+
+/**
+  Compute the brightness
+*/
+uint8_t brightness() {
+  if (cfgData.aubr) {
+    // Automatic, read the LDR connected to A0
+    uint16_t light = analogRead(A0);
+    return map(light, 0, 1023, cfgData.mnbr, cfgData.mxbr);
+  }
+  else
+    // Manual
+    return cfgData.brgt;
 }
 
 /**
@@ -331,8 +359,7 @@ void command() {
           break;
         case 'Y':
           // Read the configuration
-          cfgReadEE();
-          result = true;
+          result = cfgReadEE();
           break;
       }
     }
@@ -352,7 +379,7 @@ void command() {
       result = true;
     }
     else if (buf[0] == 'I' and len == 1) {
-      printInfo();
+      banner();
       Serial.println(__DATE__);
       result = true;
     }
@@ -372,7 +399,10 @@ void command() {
   }
 }
 
-void printInfo() {
+/**
+  Print the banner
+*/
+void banner() {
   Serial.print(DEVNAME);
   Serial.print(" ");
   Serial.println(VERSION);
@@ -382,21 +412,27 @@ void printInfo() {
   Main Arduino setup function
 */
 void setup() {
-  // Init the serial com
+  // Init the serial com and print the banner
   Serial.begin(9600);
-  printInfo();
+  banner();
 
-  // Read the configuration from EEPROM
-  if (not cfgReadEE()) cfgDefaults();
+  // Read the configuration from EEPROM or
+  // use the defaults if CRC8 does not match
+  cfgReadEE();
 
   // Init all led matrices
   mtx.init(CS_PIN, MATRICES, SCANLIMIT);
+  // Do a display test for a second
   mtx.displaytest(true);
   delay(1000);
   mtx.displaytest(false);
+  // Decode nothing
   mtx.decodemode(0);
+  // Clear the display
   mtx.clear();
-  mtx.intensity(cfgData.brgt);
+  // FIXME Set the brightness
+  mtx.intensity(brightness());
+  // Power on the matrices
   mtx.shutdown(false);
 
   // Load the font
