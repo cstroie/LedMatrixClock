@@ -370,7 +370,7 @@ uint8_t DS3231::getDOW(uint16_t year, uint8_t month, uint8_t day) {
   @param day   day   1..31
   @return bool DST yes or no
 */
-bool DS3231::dstCheck(uint16_t year, uint8_t month, uint8_t day) {
+bool DS3231::dstCheck(uint16_t year, uint8_t month, uint8_t day, uint8_t hour) {
   // Get the last Sunday in March
   uint8_t dayBegin = 31 - getDOW(year, 3, 31);
   //Serial.println(dayBegin);
@@ -379,9 +379,11 @@ bool DS3231::dstCheck(uint16_t year, uint8_t month, uint8_t day) {
   //Serial.println(dayEnd);
   // Compute the day where DST changes, since we are checking only
   // at 3 and 4'o clock, this is enough
-  return (month > 3   and month < 10) or        // Summer
-         (month == 3  and day >= dayBegin) or   // March
-         (month == 10 and day <  dayEnd);       // October
+  return (month > 3   and month < 10) or                      // Summer
+         (month == 3  and day >  dayBegin) or                 // March
+         (month == 3  and day == dayBegin and hour >= 3) or
+         (month == 10 and day <  dayEnd) or                   // October
+         (month == 10 and day == dayEnd and hour < 4);
 }
 
 /**
@@ -398,7 +400,7 @@ int8_t DS3231::dstAdjust(uint16_t year, uint8_t month, uint8_t day, uint8_t hour
   // We are operating only on hour 3 (4 if DST)
   if ((hour == 3 and not dstFlag) or (hour == 4 and dstFlag)) {
     // Get the computed DST
-    bool dstNow = dstCheck(year, month, day);
+    bool dstNow = dstCheck(year, month, day, hour);
     if      (dstNow and not dstFlag) return +1;
     else if (not dstNow and dstFlag) return -1;
   }

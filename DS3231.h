@@ -70,7 +70,7 @@ class DS3231 {
 
     uint8_t   getDOW(uint16_t year, uint8_t month, uint8_t day);
 
-    bool      dstCheck(uint16_t year, uint8_t month, uint8_t day);
+    bool      dstCheck(uint16_t year, uint8_t month, uint8_t day, uint8_t hour);
     int8_t    dstAdjust(uint16_t year, uint8_t month, uint8_t day, uint8_t hour, bool dstFlag);
     int8_t    dstSelfAdjust(bool dstFlag);
 

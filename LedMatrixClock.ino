@@ -279,6 +279,8 @@ void handleHayes() {
           // Read one more char
           if (buf[3] >= '0' and buf[3] <= '9')
             brgt = (brgt * 10 + (buf[3] - '0')) % 0x10;
+          // Reset brightness manually
+          cfgData.aubr = false;
           cfgData.brgt = brgt;
           // Set the brightness
           mtx.intensity(cfgData.brgt);
@@ -327,6 +329,10 @@ void handleHayes() {
             // The date is quite valid, set the clock to 00:00:00 if not
             // specified
             rtc.writeDateTime(sec, min, hour, day, month, year);
+            // Check if DST and set the flag
+            cfgData.dst = rtc.dstCheck(year, month, day, hour);
+            // Store the configuration
+            cfgWriteEE();
             // TODO Check
             result = true;
           }
@@ -493,7 +499,7 @@ void loop() {
     // Check the alarms, the Alarm 2 triggers once per minute
     if ((rtc.checkAlarms() & 0x02) or mtxShowTime) {
       // Read the RTC, in BCD format, and check DST adjustments each new hour
-      if (rtc.readTimeBCD()) checkDST();
+      if (rtc.readTimeBCD()) if (checkDST()) rtc.readTimeBCD();
       // Show the time
       showTimeBCD(rtc.R);
       // Reset the forced show time flag
