@@ -24,7 +24,7 @@
 #include "DS3231.h"
 
 const char DEVNAME[] = "LedMatrix Clock";
-const char VERSION[] = "2.2";
+const char VERSION[] = "2.3";
 
 // Pin definitions
 const int CS_PIN  = 10; // ~SS
@@ -241,16 +241,18 @@ void showTemperature() {
 /**
   AT-Hayes style command processing
 */
-void command() {
+void handleHayes() {
   char buf[35] = "";
   int8_t len = -1;
   bool result = false;
   if (Serial.find("AT")) {
+    // Read until newline, no more than 4 chararcters
     len = Serial.readBytesUntil('\r', buf, 4);
     buf[len] = '\0';
-    if (buf[0] == '*') {
-      // One char and numeric value
-      if (buf[1] == 'F') {
+    // Check the first character, could be a symbol or a letter
+    if      (buf[0] == '*') {
+      // Our extension, one char and numeric value (0-99)
+      if      (buf[1] == 'F') {
         // Font
         if (buf[2] >= '0' and buf[2] <= '9') {
           // Set font
@@ -336,6 +338,7 @@ void command() {
       }
     }
     else if (buf[0] == '&') {
+      // Standard '&' extension
       switch (buf[1]) {
         case 'F':
           // Factory defaults
@@ -363,10 +366,8 @@ void command() {
           break;
       }
     }
-    else if (buf[0] == '$') {
-      // One char and quoted string value
-    }
     else if (buf[0] == '?' and len == 1) {
+      // Help message
       Serial.println(F("AT?"));
       Serial.println(F("AT*Fn"));
       Serial.println(F("AT*Bn"));
@@ -379,7 +380,8 @@ void command() {
       result = true;
     }
     else if (buf[0] == 'I' and len == 1) {
-      banner();
+      // ATI
+      showBanner();
       Serial.println(__DATE__);
       result = true;
     }
@@ -400,9 +402,26 @@ void command() {
 }
 
 /**
-  Print the banner
+  Check the DST adjustments
 */
-void banner() {
+bool checkDST() {
+  int8_t dstAdj = rtc.dstSelfAdjust(cfgData.dst);
+  if (dstAdj != 0) {
+    // Do the adjustment, no need to re-read the RTC
+    rtc.setHours(dstAdj, false);
+    // Toggle the DST config bit
+    cfgData.dst ^= 1;
+    // Save the config
+    cfgWriteEE();
+    return true;
+  }
+  return false;
+}
+
+/**
+  Print the banner to serial console
+*/
+void showBanner() {
   Serial.print(DEVNAME);
   Serial.print(" ");
   Serial.println(VERSION);
@@ -414,7 +433,7 @@ void banner() {
 void setup() {
   // Init the serial com and print the banner
   Serial.begin(9600);
-  banner();
+  showBanner();
 
   // Read the configuration from EEPROM or
   // use the defaults if CRC8 does not match
@@ -453,6 +472,9 @@ void setup() {
   }
 
   if (rtc.rtcOk) {
+    // Check DST adjustments
+    checkDST();
+    // Show the temperature
     showTemperature();
     delay(2000);
   }
@@ -464,14 +486,17 @@ void setup() {
 void loop() {
   // Check any command on serial port
   if (Serial.available())
-    command();
+    handleHayes();
 
   if ((rtc.rtcOk and (millis() - rtcLastCheck > rtcDelayCheck)) or mtxShowTime) {
     rtcLastCheck = millis();
     // Check the alarms, the Alarm 2 triggers once per minute
     if ((rtc.checkAlarms() & 0x02) or mtxShowTime) {
-      rtc.readTimeBCD();
+      // Read the RTC, in BCD format, and check DST adjustments each new hour
+      if (rtc.readTimeBCD()) checkDST();
+      // Show the time
       showTimeBCD(rtc.R);
+      // Reset the forced show time flag
       mtxShowTime = false;
     }
   }

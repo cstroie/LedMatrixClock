@@ -32,6 +32,27 @@
 // Default century
 #define CENTURY   19
 
+// DS3232 Register Addresses
+#define RTC_SECONDS 0x00
+#define RTC_MINUTES 0x01
+#define RTC_HOURS   0x02
+#define RTC_DAY     0x03
+#define RTC_DATE    0x04
+#define RTC_MONTH   0x05
+#define RTC_YEAR    0x06
+#define AL1_SECONDS 0x07
+#define AL1_MINUTES 0x08
+#define AL1_HOURS   0x09
+#define AL1_DAYDATE 0x0A
+#define AL2_MINUTES 0x0B
+#define AL2_HOURS   0x0C
+#define AL2_DAYDATE 0x0D
+#define RTC_CONTROL 0x0E
+#define RTC_STATUS  0x0F
+#define RTC_AGING   0x10
+#define RTC_TMP_MSB 0x11
+#define RTC_TMP_LSB 0x12
+
 
 class DS3231 {
   public:
@@ -44,11 +65,14 @@ class DS3231 {
     uint8_t   checkAlarms();
     bool      writeDateTime(uint8_t S, uint8_t M, uint8_t H, uint8_t d, uint8_t m, uint16_t Y);
     bool      resetSeconds();
-    bool      incMinutes();
-    bool      incHours();
+    bool      setMinutes(int8_t dir = 1, bool readRTC = true);
+    bool      setHours(int8_t dir = 1, bool readRTC = true);
 
     uint8_t   getDOW(uint16_t year, uint8_t month, uint8_t day);
-    bool      isDST(uint16_t year, uint8_t month, uint8_t day);
+
+    bool      dstCheck(uint16_t year, uint8_t month, uint8_t day);
+    int8_t    dstAdjust(uint16_t year, uint8_t month, uint8_t day, uint8_t hour, bool dstFlag);
+    int8_t    dstSelfAdjust(bool dstFlag);
 
     // The names of the variables are inspired by man date(1)
     uint8_t   S; // second 00..59
@@ -63,6 +87,7 @@ class DS3231 {
     uint8_t   y; // year   00..99
     uint16_t  C; // century, e.g. 1900 or 2000
     uint16_t  Y; // year, including millenium and century
+
     uint8_t   R[4]; // 24-hour hour and minute, unpacked BCD
 
     // Flags

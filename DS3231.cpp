@@ -65,16 +65,15 @@ bool DS3231::init(uint8_t twRTC, bool twInit) {
     // Set Alarm 2 to trigger every minute
     Wire.beginTransmission(rtcAddr);
     // Alarm 2 minutes register
-    Wire.write(0x0B);
-    Wire.write(0x80); // 0x0B
-    Wire.write(0x80); // 0x0C
-    Wire.write(0x80); // 0x0D
+    Wire.write(AL2_MINUTES);
+    Wire.write(0x80);         // 0x0B
+    Wire.write(0x80);         // 0x0C
+    Wire.write(0x80);         // 0x0D
     Wire.endTransmission();
 
     // Check the control register
     Wire.beginTransmission(rtcAddr);
-    // Control Register
-    Wire.write(0x0E);
+    Wire.write(RTC_CONTROL);
     Wire.endTransmission();
     // Request one byte
     Wire.requestFrom(rtcAddr, (uint8_t)1);
@@ -82,7 +81,7 @@ bool DS3231::init(uint8_t twRTC, bool twInit) {
     // Enable Alarm 2 INT
     Wire.beginTransmission(rtcAddr);
     // Control Register
-    Wire.write(0x0E);
+    Wire.write(RTC_CONTROL);
     // Set INTCN and A2IE bits
     Wire.write(x | 0x06);
     Wire.endTransmission();
@@ -97,8 +96,7 @@ bool DS3231::init(uint8_t twRTC, bool twInit) {
 */
 bool DS3231::readTime(bool readDate) {
   Wire.beginTransmission(rtcAddr);
-  // Seconds register
-  Wire.write(0x00);
+  Wire.write(RTC_SECONDS);
   if (Wire.endTransmission() != 0)
     return false;
   // Request 3 or 7 bytes of data starting from 0x00
@@ -147,27 +145,27 @@ bool DS3231::readTime(bool readDate) {
   Read the current time from the RTC as unpacked BCD in
   preallocated buffer
 
-  @return true if the function succeeded
+  @return true on '00 minutes
 */
 bool DS3231::readTimeBCD() {
   Wire.beginTransmission(rtcAddr);
-  // Minute register
-  Wire.write(0x01);
+  Wire.write(RTC_MINUTES);
   if (Wire.endTransmission() != 0)
     return false;
-  // Request 3 bytes of data starting from 0x01
-  Wire.requestFrom(rtcAddr, (uint8_t)3);
+  // Request 2 bytes of data starting from RTC_MINUTES register
+  Wire.requestFrom(rtcAddr, (uint8_t)2);
 
   uint8_t x;
   // Minutes
   x = Wire.read();
-  R[2] = x / 16; (x & 0xF0) >> 4;
-  R[3] = x % 16; (x & 0x0F);
+  bool newHour = x == 0x00;
+  R[2] = x / 16; // (x & 0xF0) >> 4;
+  R[3] = x % 16; // (x & 0x0F);
   // Hours
   x = Wire.read() & 0x3F;
-  R[0] = x / 16; (x & 0xF0) >> 4;
-  R[1] = x % 16; (x & 0x0F);
-  return true;
+  R[0] = x / 16; // (x & 0xF0) >> 4;
+  R[1] = x % 16; // (x & 0x0F);
+  return newHour;
 }
 
 /**
@@ -177,14 +175,15 @@ bool DS3231::readTimeBCD() {
 */
 int8_t DS3231::readTemperature(bool metric) {
   Wire.beginTransmission(rtcAddr);
-  // Temperature register
-  Wire.write(0x11);
+  Wire.write(RTC_TMP_MSB);
   if (Wire.endTransmission() != 0)
     return 0x80;
   // Request one byte
   Wire.requestFrom(rtcAddr, (uint8_t)1);
   int8_t t = Wire.read();
-  if (not metric) t = (int8_t)((float)t * 1.8 + 32.0);
+  // Check if the result should be in Celsius or Fahrenheit
+  if (not metric)
+    t = (int8_t)((float)t * 1.8 + 32.0);
   return t;
 }
 
@@ -195,14 +194,13 @@ int8_t DS3231::readTemperature(bool metric) {
 */
 bool DS3231::lostPower() {
   Wire.beginTransmission(rtcAddr);
-  // Status Register
-  Wire.write(0x0F);
+  Wire.write(RTC_STATUS);
   if (Wire.endTransmission() != 0)
     return true;
   // Request one byte
   Wire.requestFrom(rtcAddr, (uint8_t)1);
   uint8_t x = Wire.read();
-  // Return the MSB
+  // Return the OSF bit
   return x & 0x80;
 }
 
@@ -213,8 +211,7 @@ bool DS3231::lostPower() {
 */
 uint8_t DS3231::checkAlarms() {
   Wire.beginTransmission(rtcAddr);
-  // Status Register
-  Wire.write(0x0F);
+  Wire.write(RTC_STATUS);
   if (Wire.endTransmission() != 0)
     return false;
   // Request one byte
@@ -225,7 +222,7 @@ uint8_t DS3231::checkAlarms() {
     // Clear the alarms
     Wire.beginTransmission(rtcAddr);
     // Status Register
-    Wire.write(0x0F);
+    Wire.write(RTC_STATUS);
     // Clear the two less significant bits
     Wire.write(x & 0xFC);
     Wire.endTransmission();
@@ -250,9 +247,9 @@ bool DS3231::writeDateTime(uint8_t S, uint8_t M, uint8_t H,
   if (u == 0) u = 7;
   // Century flag
   uint8_t c = 0x00;
-  // Set DS3231 register pointer to 0x00
+
   Wire.beginTransmission(rtcAddr);
-  Wire.write(0x00);
+  Wire.write(RTC_SECONDS);                   // Seconds register
   Wire.write(bin2bcd(S % 60));        // Seconds, 00..59
   Wire.write(bin2bcd(M % 60));        // Minutes, 00..59
   Wire.write(bin2bcd(H % 24) & 0x3F); // Hours, 00..23
@@ -265,59 +262,84 @@ bool DS3231::writeDateTime(uint8_t S, uint8_t M, uint8_t H,
 
   // Clear the status flag
   Wire.beginTransmission(rtcAddr);
-  Wire.write(0x0F);
+  Wire.write(RTC_STATUS);
   Wire.endTransmission();
   // Request one byte
   Wire.requestFrom(rtcAddr, (uint8_t)1);
   uint8_t x = Wire.read();
   // Clear the status bit
   Wire.beginTransmission(rtcAddr);
-  Wire.write(0x0F);
+  Wire.write(RTC_STATUS);
   Wire.write(x & 0x7F);
   Wire.endTransmission();
+  return true;
 }
 
 /**
    Reset RTC senconds to zero
 */
 bool DS3231::resetSeconds() {
-  // Set DS3231 register pointer to 0x00
   S = 0;
   Wire.beginTransmission(rtcAddr);
-  Wire.write(0x00);
+  Wire.write(RTC_SECONDS);
   Wire.write(S);
   return (Wire.endTransmission() == 0);
 }
 
 /**
-   Increment the minutes
+   Set the minutes
+
+   @param dir direction
 */
-bool DS3231::incMinutes() {
-  // Read the time
-  readTime();
-  // Increment the minutes
-  M = (M + 1) % 60;
-  // Set DS3231 register pointer to 0x01
+bool DS3231::setMinutes(int8_t dir, bool readRTC) {
+  // Check if we should read the RTC
+  if (readRTC) readTime();
+
+  // Check direction
+  if      (dir > 0) {
+    // Increment the minutes
+    if (M == 59) M = 0;
+    else         M++;
+  }
+  else if (dir < 0) {
+    // Decrement the minutes
+    if (M == 0) M = 59;
+    else        M--;
+  }
+
   Wire.beginTransmission(rtcAddr);
-  Wire.write(0x01);
+  Wire.write(RTC_MINUTES);
   Wire.write(bin2bcd(M));
   return (Wire.endTransmission() == 0);
 }
 
 /**
-   Increment the hours
+   Set the hours
+
+   @param dir direction
 */
-bool DS3231::incHours() {
-  // Read the time
-  readTime();
-  // Increment the hours
-  H = (H + 1) % 24;
+bool DS3231::setHours(int8_t dir, bool readRTC) {
+  // Check if we should read the RTC
+  if (readRTC) readTime();
+
+  // Check direction
+  if      (dir > 0) {
+    // Increment the hours
+    if (H == 23) H = 0;
+    else         H++;
+  }
+  else if (dir < 0) {
+    // Decrement the hours
+    if (H == 0) H = 23;
+    else        H--;
+  }
+  // Set the other variables
   P = H >= 12;
   if (H > 12) I = H - 12;
   else        I = H;
-  // Set DS3231 register pointer to 0x02
+
   Wire.beginTransmission(rtcAddr);
-  Wire.write(0x02);
+  Wire.write(RTC_HOURS);
   Wire.write(bin2bcd(H & 0x3F));
   return (Wire.endTransmission() == 0);
 }
@@ -340,24 +362,60 @@ uint8_t DS3231::getDOW(uint16_t year, uint8_t month, uint8_t day) {
   Check if a specified date observes DST, according to
   the time changing rules in Europe:
 
-    start: last Sunday in March
-    end:   last Sunday in October
+    start: last Sunday in March,   0300 -> 0400
+    end:   last Sunday in October, 0400 -> 0300
 
   @param year  year  >1752
   @param month month 1..12
   @param day   day   1..31
   @return bool DST yes or no
 */
-bool DS3231::isDST(uint16_t year, uint8_t month, uint8_t day) {
+bool DS3231::dstCheck(uint16_t year, uint8_t month, uint8_t day) {
   // Get the last Sunday in March
   uint8_t dayBegin = 31 - getDOW(year, 3, 31);
+  //Serial.println(dayBegin);
   // Get the last Sunday on October
   uint8_t dayEnd = 31 - getDOW(year, 10, 31);
-  // Compute DST
-  return ((month > 3) and (month < 10)) or
-         ((month == 3) and (day >= dayBegin)) or
-         ((month == 10) and (day < dayEnd));
+  //Serial.println(dayEnd);
+  // Compute the day where DST changes, since we are checking only
+  // at 3 and 4'o clock, this is enough
+  return (month > 3   and month < 10) or        // Summer
+         (month == 3  and day >= dayBegin) or   // March
+         (month == 10 and day <  dayEnd);       // October
 }
 
+/**
+  Get the DST adjustment for the specified time
 
+  @param year     year  >1752
+  @param month    month 1..12
+  @param day      day   1..31
+  @param hour     hour  3 or 4
+  @param dstFlag  current DST flag
+  @return int8_t adjustment amount
+*/
+int8_t DS3231::dstAdjust(uint16_t year, uint8_t month, uint8_t day, uint8_t hour, bool dstFlag) {
+  // We are operating only on hour 3 (4 if DST)
+  if ((hour == 3 and not dstFlag) or (hour == 4 and dstFlag)) {
+    // Get the computed DST
+    bool dstNow = dstCheck(year, month, day);
+    if      (dstNow and not dstFlag) return +1;
+    else if (not dstNow and dstFlag) return -1;
+  }
+  // No adjustment
+  return 0;
+}
+
+/**
+  Get the DST adjustment for own date and time
+
+  @param dstFlag  current DST flag
+  @return int8_t adjustment amount
+*/
+int8_t DS3231::dstSelfAdjust(bool dstFlag) {
+  // Get full date and time
+  readTime(true);
+  // Return the required DST adjustments
+  return dstAdjust(Y, m, d, H, dstFlag);
+}
 
