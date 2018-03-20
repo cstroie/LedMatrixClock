@@ -24,10 +24,11 @@
 #include "DS3231.h"
 
 const char DEVNAME[] = "LedMatrix Clock";
-const char VERSION[] = "2.3";
+const char VERSION[] = "2.4";
 
 // Pin definitions
-const int CS_PIN  = 10; // ~SS
+const int CS_PIN    = 10; // ~SS
+const int BEEP_PIN  = 2;
 
 // The RTC
 DS3231 rtc;
@@ -50,6 +51,9 @@ struct cfgEE_t {
       uint8_t mxbr: 4;  // Minimum display brightness (auto)
       bool    aubr: 1;  // Manual/Auto display brightness adjustment
       bool    tmpu: 1;  // Temperature units
+      uint8_t spkm: 2;  // Speaker mode
+      uint8_t spkl: 2;  // Speaker volume level
+      uint8_t echo: 1;  // Local echo
       bool    dst:  1;  // DST flag
     };
     uint8_t data[4];    // We use 4 bytes in the structure
@@ -139,7 +143,7 @@ void cfgWriteEE() {
 /**
   Read the configuration from EEPROM, along with CRC8, and verify
 */
-bool cfgReadEE(bool ignoreErrors = false) {
+bool cfgReadEE(bool useDefaults = false) {
   // Temporary configuration structure
   struct cfgEE_t cfgTemp;
   // Read the data from EEPROM
@@ -147,8 +151,8 @@ bool cfgReadEE(bool ignoreErrors = false) {
   // Compute the CRC8 checksum of the read data
   uint8_t crc8 = cfgEECRC(cfgTemp);
   // Check if the read data is valid
-  if (cfgTemp.crc8 == crc8 or ignoreErrors)
-    cfgData = cfgTemp;
+  if      (cfgTemp.crc8 == crc8)  cfgData = cfgTemp;
+  else if (useDefaults)           cfgDefaults();
   return (cfgTemp.crc8 == crc8);
 }
 
@@ -162,6 +166,9 @@ bool cfgDefaults() {
   cfgData.mxbr = 0x0F;
   cfgData.aubr = 0x01;
   cfgData.tmpu = 0x01;
+  cfgData.spkm = 0x00;
+  cfgData.spkl = 0x00;
+  cfgData.echo = 0x01;
   cfgData.dst  = 0x00;
 };
 
@@ -240,6 +247,17 @@ void showTemperature() {
   mtx.fbDisplay();
 }
 
+/**
+  Short BEEP
+
+  @param duration beep duration in ms
+*/
+void beep(uint16_t duration = 20) {
+  pinMode(BEEP_PIN, OUTPUT);
+  digitalWrite(BEEP_PIN, HIGH);
+  delay(duration);
+  digitalWrite(BEEP_PIN, LOW);
+}
 
 /**
   AT-Hayes style command processing
@@ -252,6 +270,11 @@ void handleHayes() {
     // Read until newline, no more than 4 chararcters
     len = Serial.readBytesUntil('\r', buf, 4);
     buf[len] = '\0';
+    // Local echo
+    if (cfgData.echo) {
+      Serial.print(F("AT"));
+      Serial.println(buf);
+    }
     // Check the first character, could be a symbol or a letter
     if      (buf[0] == '*') {
       // Our extension, one char and numeric value (0-99)
@@ -375,6 +398,66 @@ void handleHayes() {
           break;
       }
     }
+    else if (buf[0] == 'I' and len == 1) {
+      // ATI
+      showBanner();
+      Serial.println(__DATE__);
+      result = true;
+    }
+    else if (buf[0] == 'E') {
+      // ATL Set local echo
+      if (len == 1) {
+        cfgData.echo = 0x00;
+        result = true;
+      }
+      else if (buf[1] >= '0' and buf[1] <= '1') {
+        // Set echo on or off
+        cfgData.echo = (buf[1] - '0') & 0x01;
+        result = true;
+      }
+      else if (buf[1] == '?') {
+        // Get local echo
+        Serial.print(F("E: "));
+        Serial.println(cfgData.echo);
+        result = true;
+      }
+    }
+    else if (buf[0] == 'L') {
+      // ATL Set speaker volume
+      if (len == 1) {
+        cfgData.spkl = 0x00;
+        result = true;
+      }
+      else if (buf[1] >= '0' and buf[1] <= '3') {
+        // Set speaker volume
+        cfgData.spkl = (buf[1] - '0') & 0x03;
+        result = true;
+      }
+      else if (buf[1] == '?') {
+        // Get speaker volume level
+        Serial.print(F("L: "));
+        Serial.println(cfgData.spkl);
+        result = true;
+      }
+    }
+    else if (buf[0] == 'M') {
+      // ATM Speaker control
+      if (len == 1) {
+        cfgData.spkm = 0x00;
+        result = true;
+      }
+      else if (buf[1] >= '0' and buf[1] <= '3') {
+        // Set speaker on or off mode
+        cfgData.spkm = (buf[1] - '0') & 0x03;
+        result = true;
+      }
+      else if (buf[1] == '?') {
+        // Get speaker mode
+        Serial.print(F("M: "));
+        Serial.println(cfgData.spkm);
+        result = true;
+      }
+    }
     else if (buf[0] == '?' and len == 1) {
       // Help message
       Serial.println(F("AT?"));
@@ -386,12 +469,6 @@ void handleHayes() {
       Serial.println(F("AT&V"));
       Serial.println(F("AT&W"));
       Serial.println(F("AT&Y"));
-      result = true;
-    }
-    else if (buf[0] == 'I' and len == 1) {
-      // ATI
-      showBanner();
-      Serial.println(__DATE__);
       result = true;
     }
     else if (len == 0)
@@ -446,7 +523,7 @@ void setup() {
 
   // Read the configuration from EEPROM or
   // use the defaults if CRC8 does not match
-  cfgReadEE();
+  cfgReadEE(true);
 
   // Init all led matrices
   mtx.init(CS_PIN, MATRICES, SCANLIMIT);
@@ -501,12 +578,18 @@ void loop() {
     rtcLastCheck = millis();
     // Check the alarms, the Alarm 2 triggers once per minute
     if ((rtc.checkAlarms() & 0x02) or mtxShowTime) {
-      // Read the RTC, in BCD format, and check DST adjustments each new hour
-      if (rtc.readTimeBCD()) if (checkDST()) rtc.readTimeBCD();
+      // Read the RTC, in BCD format
+      bool newHour = rtc.readTimeBCD();
+      // Check DST adjustments each new hour and read RTC if adjusted
+      if (newHour)
+        if (checkDST())
+          rtc.readTimeBCD();
       // Show the time
       showTimeBCD(rtc.R);
       // Reset the forced show time flag
       mtxShowTime = false;
+      // Beep each hour, on the dot
+      if (newHour and (cfgData.spkm & 0x01)) beep();
     }
   }
 }
