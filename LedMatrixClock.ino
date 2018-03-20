@@ -140,13 +140,16 @@ void cfgWriteEE() {
   Read the configuration from EEPROM, along with CRC8, and verify
 */
 bool cfgReadEE(bool ignoreErrors = false) {
+  // Temporary configuration structure
+  struct cfgEE_t cfgTemp;
   // Read the data from EEPROM
-  EEPROM.get(cfgEEAddress, cfgData);
+  EEPROM.get(cfgEEAddress, cfgTemp);
   // Compute the CRC8 checksum of the read data
-  uint8_t crc8 = cfgEECRC(cfgData);
-  if (cfgData.crc8 != crc8 and not ignoreErrors)
-    cfgDefaults();
-  return (cfgData.crc8 == crc8);
+  uint8_t crc8 = cfgEECRC(cfgTemp);
+  // Check if the read data is valid
+  if (cfgTemp.crc8 == crc8 or ignoreErrors)
+    cfgData = cfgTemp;
+  return (cfgTemp.crc8 == crc8);
 }
 
 /**
