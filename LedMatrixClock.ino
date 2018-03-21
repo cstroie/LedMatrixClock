@@ -275,10 +275,9 @@ void handleHayes() {
     // Read until newline, no more than 4 chararcters
     len = Serial.readBytesUntil('\r', buf, 4);
     buf[len] = '\0';
-    // Local echo
+    // Local terminal echo
     if (cfgData.echo) {
-      Serial.print(F("AT"));
-      Serial.println(buf);
+      Serial.print(F("AT")); Serial.println(buf);
     }
     // Check the first character, could be a symbol or a letter
     switch (buf[0]) {
@@ -298,8 +297,7 @@ void handleHayes() {
             }
             else if (buf[2] == '?') {
               // Get brightness
-              Serial.print(F("*A: "));
-              Serial.println(cfgData.aubr);
+              Serial.print(F("*A: ")); Serial.println(cfgData.aubr);
               result = true;
             }
             break;
@@ -318,8 +316,7 @@ void handleHayes() {
             }
             else if (buf[2] == '?') {
               // Get brightness
-              Serial.print(F("*B: "));
-              Serial.println(cfgData.brgt);
+              Serial.print(F("*B: ")); Serial.println(cfgData.brgt);
               result = true;
             }
             break;
@@ -337,8 +334,7 @@ void handleHayes() {
             }
             else if (buf[2] == '?') {
               // Get DST
-              Serial.print(F("*D: "));
-              Serial.println(cfgData.dst);
+              Serial.print(F("*D: ")); Serial.println(cfgData.dst);
               result = true;
             }
             break;
@@ -355,8 +351,7 @@ void handleHayes() {
             }
             else if (buf[2] == '?') {
               // Get font
-              Serial.print(F("*F: "));
-              Serial.println(cfgData.font);
+              Serial.print(F("*F: ")); Serial.println(cfgData.font);
               result = true;
             }
             break;
@@ -377,8 +372,7 @@ void handleHayes() {
             }
             else if (buf[2] == '?') {
               // Get font
-              Serial.print(F("*H: "));
-              Serial.println(cfgData.mxbr);
+              Serial.print(F("*H: ")); Serial.println(cfgData.mxbr);
               result = true;
             }
             break;
@@ -399,8 +393,7 @@ void handleHayes() {
             }
             else if (buf[2] == '?') {
               // Get font
-              Serial.print(F("*L: "));
-              Serial.println(cfgData.mnbr);
+              Serial.print(F("*L: ")); Serial.println(cfgData.mnbr);
               result = true;
             }
             break;
@@ -422,8 +415,7 @@ void handleHayes() {
             }
             else if (buf[2] == '?') {
               // Get temperature units
-              Serial.print(F("*U: "));
-              Serial.println(cfgData.tmpu ? "C" : "F");
+              Serial.print(F("*U: ")); Serial.println(cfgData.tmpu ? "C" : "F");
               result = true;
             }
             else if (len == 2) {
@@ -482,7 +474,7 @@ void handleHayes() {
             Serial.print(F("*H: ")); Serial.print(cfgData.mxbr); Serial.println(F("; "));
             Serial.print(F("*F: ")); Serial.print(cfgData.font); Serial.print(F("; "));
             Serial.print(F("*D: ")); Serial.print(cfgData.dst);  Serial.print(F("; "));
-            Serial.print(F("*U: ")); Serial.println(cfgData.tmpu ? "C" : "F"); Serial.println(F("; "));
+            Serial.print(F("*U: ")); Serial.print(cfgData.tmpu ? "C" : "F"); Serial.println(F("; "));
             result = true;
             break;
           case 'W': // Store the configuration
@@ -493,14 +485,12 @@ void handleHayes() {
             break;
         }
         break;
-      case 'I':
-        // ATI
+      case 'I': // ATI Show info
         showBanner();
         Serial.println(__DATE__);
         result = true;
         break;
-      case 'E':
-        // ATL Set local echo
+      case 'E': // ATE Set local echo
         if (len == 1) {
           cfgData.echo = 0x00;
           result = true;
@@ -512,13 +502,11 @@ void handleHayes() {
         }
         else if (buf[1] == '?') {
           // Get local echo
-          Serial.print(F("E: "));
-          Serial.println(cfgData.echo);
+          Serial.print(F("E: ")); Serial.println(cfgData.echo);
           result = true;
         }
         break;
-      case 'L':
-        // ATL Set speaker volume
+      case 'L': // ATL Set speaker volume level
         if (len == 1) {
           cfgData.spkl = 0x00;
           result = true;
@@ -530,13 +518,11 @@ void handleHayes() {
         }
         else if (buf[1] == '?') {
           // Get speaker volume level
-          Serial.print(F("L: "));
-          Serial.println(cfgData.spkl);
+          Serial.print(F("L: ")); Serial.println(cfgData.spkl);
           result = true;
         }
         break;
-      case 'M':
-        // ATM Speaker control
+      case 'M': // ATM Speaker control
         if (len == 1) {
           cfgData.spkm = 0x00;
           result = true;
@@ -548,13 +534,12 @@ void handleHayes() {
         }
         else if (buf[1] == '?') {
           // Get speaker mode
-          Serial.print(F("M: "));
-          Serial.println(cfgData.spkm);
+          Serial.print(F("M: ")); Serial.println(cfgData.spkm);
           result = true;
         }
         break;
       case '?':
-        // Help message
+        // Help messages
         Serial.println(F("AT?"));
         Serial.println(F("AT*Fn"));
         Serial.println(F("AT*Bn"));
@@ -567,15 +552,13 @@ void handleHayes() {
         result = true;
         break;
       default:
-        if (len == 0)
-          result = true;
+        result = (len == 0);
     }
 
+    // Last response line
     if (len >= 0) {
-      if (result)
-        Serial.println(F("OK"));
-      else
-        Serial.println(F("ERROR"));
+      if (result) Serial.println(F("OK"));
+      else        Serial.println(F("ERROR"));
 
       // Force time display
       mtxShowTime = true;
