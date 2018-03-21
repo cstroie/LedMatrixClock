@@ -19,6 +19,9 @@
 
 // EEPROM
 #include <EEPROM.h>
+// Watchdog, sleep
+#include <avr/wdt.h>
+#include <avr/sleep.h>
 
 #include "DotMatrix.h"
 #include "DS3231.h"
@@ -397,31 +400,9 @@ void handleHayes() {
               result = true;
             }
             break;
-          case 'U': // Temperature units and query
-            if (buf[2] >= '0' and buf[2] <= '1') {
-              // Set temperature units
-              cfgData.tmpu = buf[2] == '1' ? true : false;
-              result = true;
-            }
-            else if (buf[2] == 'C') {
-              // Set temperature units
-              cfgData.tmpu = true;
-              result = true;
-            }
-            else if (buf[2] == 'F') {
-              // Set temperature units
-              cfgData.tmpu = false;
-              result = true;
-            }
-            else if (buf[2] == '?') {
-              // Get temperature units
-              Serial.print(F("*U: ")); Serial.println(cfgData.tmpu ? "C" : "F");
-              result = true;
-            }
-            else if (len == 2) {
-              // Show the temperature
-              Serial.print((int)rtc.readTemperature(cfgData.tmpu));
-              Serial.println(cfgData.tmpu ? "C" : "F");
+          case 'M': // MCU temperature
+            if (len == 2) {
+              Serial.print((float)readMCUTemp() / 100.0, 2); Serial.println(F("C"));
               result = true;
             }
             break;
@@ -457,6 +438,40 @@ void handleHayes() {
               Serial.print(rtc.H); Serial.print(F(":"));
               Serial.print(rtc.M); Serial.print(F(":"));
               Serial.print(rtc.S); Serial.println();
+              result = true;
+            }
+            break;
+          case 'U': // Temperature units and query
+            if (buf[2] >= '0' and buf[2] <= '1') {
+              // Set temperature units
+              cfgData.tmpu = buf[2] == '1' ? true : false;
+              result = true;
+            }
+            else if (buf[2] == 'C') {
+              // Set temperature units
+              cfgData.tmpu = true;
+              result = true;
+            }
+            else if (buf[2] == 'F') {
+              // Set temperature units
+              cfgData.tmpu = false;
+              result = true;
+            }
+            else if (buf[2] == '?') {
+              // Get temperature units
+              Serial.print(F("*U: ")); Serial.println(cfgData.tmpu ? "C" : "F");
+              result = true;
+            }
+            else if (len == 2) {
+              // Show the temperature
+              Serial.print((int)rtc.readTemperature(cfgData.tmpu));
+              Serial.println(cfgData.tmpu ? "C" : "F");
+              result = true;
+            }
+            break;
+          case 'V': // Vcc
+            if (len == 2) {
+              Serial.print((float)readVcc() / 1000.0, 3); Serial.println(F("V"));
               result = true;
             }
             break;
@@ -538,6 +553,9 @@ void handleHayes() {
           result = true;
         }
         break;
+      case 'Z': // ATZ Reset
+        softReset(WDTO_2S);
+        break;
       case '?':
         // Help messages
         Serial.println(F("AT?"));
@@ -591,6 +609,104 @@ void showBanner() {
   Serial.print(DEVNAME);
   Serial.print(" ");
   Serial.println(VERSION);
+}
+
+/**
+  Analog raw reading, after a delay, while sleeping, using interrupt
+
+  @return raw analog read value (long)
+*/
+long readRaw() {
+  // Set the registers
+  ADCSRA |= _BV(ADPS0) | _BV(ADPS1) | _BV(ADPS2);   // prescaler of 128
+  ADCSRA |= _BV(ADEN);                              // enable the ADC
+  ADCSRA |= _BV(ADIE);                              // enable interrupt
+  // Wait for voltage to settle
+  delay(10);
+  // Take an ADC reading in sleep mode
+  noInterrupts();
+  // Start conversion
+  ADCSRA |= _BV(ADSC);
+  set_sleep_mode(SLEEP_MODE_ADC);
+  interrupts();
+  // Awake again, reading should be done, but better make sure
+  while (bit_is_set(ADCSRA, ADSC));
+  // Reading register "ADCW" takes care of how to read ADCL and ADCH
+  long wADC = ADCW;
+  // The returned reading
+  return wADC;
+}
+
+/**
+  Read the analog pin after a delay, while sleeping, using interrupt
+
+  @param pin the analog pin
+  @return raw analog read value
+*/
+int readAnalog(uint8_t pin) {
+  // Allow for channel or pin numbers
+  if (pin >= 14) pin -= 14;
+
+  // Set the analog reference to DEFAULT, select the channel (low 4 bits).
+  // This also sets ADLAR (left-adjust result) to 0 (the default).
+  ADMUX = _BV(REFS0) | (pin & 0x07);
+
+  // Raw analog read
+  long wADC = readRaw();
+
+  // The returned reading
+  return (int)(wADC);
+}
+
+/**
+  Read the internal MCU temperature
+  The internal temperature has to be used with the internal reference of 1.1V.
+  Channel 8 can not be selected with the analogRead function yet.
+
+  @return temperature in hundredths of degrees Celsius, *calibrated for my device*
+*/
+int readMCUTemp() {
+  // Set the internal reference and mux.
+  ADMUX = (_BV(REFS1) | _BV(REFS0) | _BV(MUX3));
+
+  // Raw analog read
+  long wADC = readRaw();
+
+  // The returned temperature is in hundreds degrees Celsius; not calibrated
+  return (int)(100 * wADC - 27315);
+}
+
+/*
+  Read the power supply voltage, by measuring the internal 1V1 reference
+
+  @return voltage in millivolts, uncalibrated
+*/
+int readVcc() {
+  // Set the reference to Vcc and the measurement to the internal 1.1V reference
+  ADMUX = _BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
+
+  // Raw analog read
+  long wADC = readRaw();
+
+  // Return Vcc in mV; 1125300 = 1.1 * 1024 * 1000
+  return (int)(1125300UL / wADC);
+}
+
+/**
+  Software reset the MCU
+  (c) Mircea Diaconescu http://web-engineering.info/node/29
+*/
+void softReset(uint8_t prescaller) {
+  Serial.print(F("Reboot"));
+  // Start watchdog with the provided prescaller
+  wdt_enable(prescaller);
+  // Wait for the prescaller time to expire
+  // without sending the reset signal by using
+  // the wdt_reset() method
+  while (true) {
+    Serial.print(F("."));
+    delay(1000);
+  }
 }
 
 /**
