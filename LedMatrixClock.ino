@@ -76,7 +76,7 @@ bool mtxShowTime = true;
   @param inData new data
   @return updated CRC
 */
-uint8_t crc_8(uint8_t inCrc, uint8_t inData) {
+uint8_t CRC8(uint8_t inCrc, uint8_t inData) {
   uint8_t outCrc = inCrc ^ inData;
   for (uint8_t i = 0; i < 8; ++i) {
     if ((outCrc & 0x80 ) != 0) {
@@ -100,7 +100,7 @@ uint8_t cfgEECRC(struct cfgEE_t cfg) {
   // Compute the CRC8 checksum of the data
   uint8_t crc8 = 0;
   for (uint8_t i = 0; i < sizeof(cfg) - 1; i++)
-    crc8 = crc_8(crc8, cfgData.data[i]);
+    crc8 = CRC8(crc8, cfgData.data[i]);
   return crc8;
 }
 
@@ -111,7 +111,7 @@ uint8_t cfgEECRC(struct cfgEE_t cfg) {
   @param cfg1 the second configuration structure
   @return true if equal
 */
-bool cfgCompare(struct cfgEE_t cfg1, struct cfgEE_t cfg2) {
+bool cfgEqual(struct cfgEE_t cfg1, struct cfgEE_t cfg2) {
   bool result = true;
   // Check CRC first
   if (cfg1.crc8 != cfg2.crc8)
@@ -127,17 +127,21 @@ bool cfgCompare(struct cfgEE_t cfg1, struct cfgEE_t cfg2) {
 /**
   Write the configuration to EEPROM, along with CRC8, if different
 */
-void cfgWriteEE() {
+bool cfgWriteEE() {
   // Temporary configuration structure
   struct cfgEE_t cfgTemp;
-  // Read the data from EEPROM
+  // Read the data from EEPROM into the temporary structure
   EEPROM.get(cfgEEAddress, cfgTemp);
-  // Compute the CRC8 checksum of the current data
+  // Compute the CRC8 checksum of the read data
+  uint8_t crc8 = cfgEECRC(cfgTemp);
+  // Compute the CRC8 checksum of the actual data
   cfgData.crc8 = cfgEECRC(cfgData);
-  // Compare the new and the stored data
-  if (not cfgCompare(cfgData, cfgTemp))
+  // Compare the new and the stored data and check if the stored data is valid
+  if (not cfgEqual(cfgData, cfgTemp) or (cfgTemp.crc8 != crc8))
     // Write the data
     EEPROM.put(cfgEEAddress, cfgData);
+  // Always return true, even if data is not written
+  return true;
 }
 
 /**
@@ -146,11 +150,11 @@ void cfgWriteEE() {
 bool cfgReadEE(bool useDefaults = false) {
   // Temporary configuration structure
   struct cfgEE_t cfgTemp;
-  // Read the data from EEPROM
+  // Read the data from EEPROM into the temporary structure
   EEPROM.get(cfgEEAddress, cfgTemp);
   // Compute the CRC8 checksum of the read data
   uint8_t crc8 = cfgEECRC(cfgTemp);
-  // Check if the read data is valid
+  // And compare with the read crc8 checksum
   if      (cfgTemp.crc8 == crc8)  cfgData = cfgTemp;
   else if (useDefaults)           cfgDefaults();
   return (cfgTemp.crc8 == crc8);
@@ -170,6 +174,7 @@ bool cfgDefaults() {
   cfgData.spkl = 0x00;
   cfgData.echo = 0x01;
   cfgData.dst  = 0x00;
+  return true;
 };
 
 /**
@@ -276,214 +281,306 @@ void handleHayes() {
       Serial.println(buf);
     }
     // Check the first character, could be a symbol or a letter
-    if      (buf[0] == '*') {
-      // Our extension, one char and numeric value (0-99)
-      if      (buf[1] == 'F') {
-        // Font
-        if (buf[2] >= '0' and buf[2] <= '9') {
-          // Set font
-          uint8_t font = buf[2] - '0';
-          // Read one more char
-          if (buf[3] >= '0' and buf[3] <= '9')
-            font = (font * 10 + (buf[3] - '0')) % fontCount;
-          cfgData.font = font;
-          mtx.loadFont(cfgData.font);
-          result = true;
+    switch (buf[0]) {
+      case '*': // Our extension, one letter and 1..2 digits (0-99), or '?', '='
+        switch (buf[1]) {
+          case 'A': // Auto brightness switch
+            if (len == 2) {
+              cfgData.aubr = 0x00;
+              mtx.intensity(brightness());
+              result = true;
+            }
+            else if (buf[2] >= '0' and buf[2] <= '1') {
+              // Set auto brightness
+              cfgData.aubr = (buf[2] - '0') & 0x01;
+              mtx.intensity(brightness());
+              result = true;
+            }
+            else if (buf[2] == '?') {
+              // Get brightness
+              Serial.print(F("*A: "));
+              Serial.println(cfgData.aubr);
+              result = true;
+            }
+            break;
+          case 'B': // Brightness
+            if (buf[2] >= '0' and buf[2] <= '9') {
+              // Set brightness
+              uint8_t brgt = buf[2] - '0';
+              // Read one more char
+              if (buf[3] >= '0' and buf[3] <= '9')
+                brgt = (brgt * 10 + (buf[3] - '0')) % 0x10;
+              cfgData.aubr = false;
+              cfgData.brgt = brgt;
+              // Set the brightness
+              mtx.intensity(brightness());
+              result = true;
+            }
+            else if (buf[2] == '?') {
+              // Get brightness
+              Serial.print(F("*B: "));
+              Serial.println(cfgData.brgt);
+              result = true;
+            }
+            break;
+          case 'D': // DST switch
+            if (len == 2) {
+              cfgData.dst = 0x00;
+              mtxShowTime = true;
+              result = true;
+            }
+            else if (buf[2] >= '0' and buf[2] <= '1') {
+              // Set DST
+              cfgData.dst = (buf[2] - '0') & 0x01;
+              mtxShowTime = true;
+              result = true;
+            }
+            else if (buf[2] == '?') {
+              // Get DST
+              Serial.print(F("*D: "));
+              Serial.println(cfgData.dst);
+              result = true;
+            }
+            break;
+          case 'F': // Font
+            if (buf[2] >= '0' and buf[2] <= '9') {
+              // Set font
+              uint8_t font = buf[2] - '0';
+              // Read one more char
+              if (buf[3] >= '0' and buf[3] <= '9')
+                font = (font * 10 + (buf[3] - '0')) % fontCount;
+              cfgData.font = font;
+              mtx.loadFont(cfgData.font);
+              result = true;
+            }
+            else if (buf[2] == '?') {
+              // Get font
+              Serial.print(F("*F: "));
+              Serial.println(cfgData.font);
+              result = true;
+            }
+            break;
+          case 'H': // Highest (maximum) auto brightness level
+            if (len == 2) {
+              cfgData.mxbr = 0x0F;
+              mtx.intensity(brightness());
+              result = true;
+            }
+            else if (buf[2] >= '0' and buf[2] <= '9') {
+              uint8_t value = buf[2] - '0';
+              // Read one more char
+              if (buf[3] >= '0' and buf[3] <= '9')
+                value = (value * 10 + (buf[3] - '0')) & 0x0F;
+              cfgData.mxbr = value;
+              mtx.intensity(brightness());
+              result = true;
+            }
+            else if (buf[2] == '?') {
+              // Get font
+              Serial.print(F("*H: "));
+              Serial.println(cfgData.mxbr);
+              result = true;
+            }
+            break;
+          case 'L': // Lowest (minimum) auto brightness level
+            if (len == 2) {
+              cfgData.mnbr = 0x00;
+              mtx.intensity(brightness());
+              result = true;
+            }
+            else if (buf[2] >= '0' and buf[2] <= '9') {
+              uint8_t value = buf[2] - '0';
+              // Read one more char
+              if (buf[3] >= '0' and buf[3] <= '9')
+                value = (value * 10 + (buf[3] - '0')) & 0x0F;
+              cfgData.mnbr = value;
+              mtx.intensity(brightness());
+              result = true;
+            }
+            else if (buf[2] == '?') {
+              // Get font
+              Serial.print(F("*L: "));
+              Serial.println(cfgData.mnbr);
+              result = true;
+            }
+            break;
+          case 'U': // Temperature units and query
+            if (buf[2] >= '0' and buf[2] <= '1') {
+              // Set temperature units
+              cfgData.tmpu = buf[2] == '1' ? true : false;
+              result = true;
+            }
+            else if (buf[2] == 'C') {
+              // Set temperature units
+              cfgData.tmpu = true;
+              result = true;
+            }
+            else if (buf[2] == 'F') {
+              // Set temperature units
+              cfgData.tmpu = false;
+              result = true;
+            }
+            else if (buf[2] == '?') {
+              // Get temperature units
+              Serial.print(F("*U: "));
+              Serial.println(cfgData.tmpu ? "C" : "F");
+              result = true;
+            }
+            else if (len == 2) {
+              // Show the temperature
+              Serial.print((int)rtc.readTemperature(cfgData.tmpu));
+              Serial.println(cfgData.tmpu ? "C" : "F");
+              result = true;
+            }
+            break;
+          case 'T': // Time and date setting and query
+            //  Usage: AT*T="YYYY/MM/DD HH:MM:SS" or, using date(1),
+            //  ( sleep 2 && date "+AT\*T=\"%Y/%m/%d %H:%M:%S\"" ) > /dev/ttyUSB0
+            if (buf[2] == '=' and buf[3] == '"') {
+              // Set time and date
+              uint16_t  year  = Serial.parseInt();
+              uint8_t   month = Serial.parseInt();
+              uint8_t   day   = Serial.parseInt();
+              uint8_t   hour  = Serial.parseInt();
+              uint8_t   min   = Serial.parseInt();
+              uint8_t   sec   = Serial.parseInt();
+              if (year != 0 and month != 0 and day != 0) {
+                // The date is quite valid, set the clock to 00:00:00 if not
+                // specified
+                rtc.writeDateTime(sec, min, hour, day, month, year);
+                // Check if DST and set the flag
+                cfgData.dst = rtc.dstCheck(year, month, day, hour);
+                // Store the configuration
+                cfgWriteEE();
+                // TODO Check
+                result = true;
+              }
+            }
+            else if (buf[2] == '?') {
+              // Get time and date
+              rtc.readTime(true);
+              Serial.print(rtc.Y); Serial.print(F("/"));
+              Serial.print(rtc.m); Serial.print(F("/"));
+              Serial.print(rtc.d); Serial.print(F(" "));
+              Serial.print(rtc.H); Serial.print(F(":"));
+              Serial.print(rtc.M); Serial.print(F(":"));
+              Serial.print(rtc.S); Serial.println();
+              result = true;
+            }
+            break;
         }
-        else if (buf[2] == '?') {
-          // Get font
-          Serial.print(F("*F: "));
-          Serial.println(cfgData.font);
-          result = true;
-        }
-      }
-      else if (buf[1] == 'B') {
-        // Brightness
-        if (buf[2] >= '0' and buf[2] <= '9') {
-          // Set brightness
-          uint8_t brgt = buf[2] - '0';
-          // Read one more char
-          if (buf[3] >= '0' and buf[3] <= '9')
-            brgt = (brgt * 10 + (buf[3] - '0')) % 0x10;
-          // Reset brightness manually
-          cfgData.aubr = false;
-          cfgData.brgt = brgt;
-          // Set the brightness
-          mtx.intensity(cfgData.brgt);
-          result = true;
-        }
-        else if (buf[2] == '?') {
-          // Get brightness
-          Serial.print(F("*B: "));
-          Serial.println(cfgData.brgt);
-          result = true;
-        }
-      }
-      else if (buf[1] == 'U') {
-        // Temperature
-        if (buf[2] >= '0' and buf[2] <= '1') {
-          // Set temperature units
-          cfgData.tmpu = buf[2] == '1' ? true : false;
-          result = true;
-        }
-        else if (buf[2] == '?') {
-          // Get temperature units
-          Serial.print(F("*U: "));
-          Serial.println(cfgData.tmpu ? "C" : "F");
-          result = true;
-        }
-        else if (len == 2) {
-          // Show the temperature
-          Serial.print((int)rtc.readTemperature(cfgData.tmpu));
-          Serial.println(cfgData.tmpu ? "C" : "F");
-          result = true;
-        }
-      }
-      else if (buf[1] == 'T') {
-        // Time and date
-        //  Usage: AT*T="YYYY/MM/DD HH:MM:SS" or, using date(1),
-        //  ( sleep 2 && date "+AT\*T=\"%Y/%m/%d %H:%M:%S\"" ) > /dev/ttyUSB0
-        if (buf[2] == '=' and buf[3] == '"') {
-          // Set time and date
-          uint16_t  year  = Serial.parseInt();
-          uint8_t   month = Serial.parseInt();
-          uint8_t   day   = Serial.parseInt();
-          uint8_t   hour  = Serial.parseInt();
-          uint8_t   min   = Serial.parseInt();
-          uint8_t   sec   = Serial.parseInt();
-          if (year != 0 and month != 0 and day != 0) {
-            // The date is quite valid, set the clock to 00:00:00 if not
-            // specified
-            rtc.writeDateTime(sec, min, hour, day, month, year);
-            // Check if DST and set the flag
-            cfgData.dst = rtc.dstCheck(year, month, day, hour);
-            // Store the configuration
-            cfgWriteEE();
-            // TODO Check
+        break;
+      case '&': // Standard '&' extension
+        switch (buf[1]) {
+          case 'F': // Factory defaults
+            result = cfgDefaults();
+            break;
+          case 'V': // Show the configuration
+            Serial.print(F("*A: ")); Serial.print(cfgData.aubr); Serial.print(F("; "));
+            Serial.print(F("*B: ")); Serial.print(cfgData.brgt); Serial.print(F("; "));
+            Serial.print(F("*L: ")); Serial.print(cfgData.mnbr); Serial.print(F("; "));
+            Serial.print(F("*H: ")); Serial.print(cfgData.mxbr); Serial.println(F("; "));
+            Serial.print(F("*F: ")); Serial.print(cfgData.font); Serial.print(F("; "));
+            Serial.print(F("*D: ")); Serial.print(cfgData.dst);  Serial.print(F("; "));
+            Serial.print(F("*U: ")); Serial.println(cfgData.tmpu ? "C" : "F"); Serial.println(F("; "));
             result = true;
-          }
+            break;
+          case 'W': // Store the configuration
+            result = cfgWriteEE();
+            break;
+          case 'Y': // Read the configuration
+            result = cfgReadEE();
+            break;
         }
-        else if (buf[2] == '?') {
-          // TODO Get time and date
+        break;
+      case 'I':
+        // ATI
+        showBanner();
+        Serial.println(__DATE__);
+        result = true;
+        break;
+      case 'E':
+        // ATL Set local echo
+        if (len == 1) {
+          cfgData.echo = 0x00;
           result = true;
         }
-      }
-    }
-    else if (buf[0] == '&') {
-      // Standard '&' extension
-      switch (buf[1]) {
-        case 'F':
-          // Factory defaults
-          cfgDefaults();
+        else if (buf[1] >= '0' and buf[1] <= '1') {
+          // Set echo on or off
+          cfgData.echo = (buf[1] - '0') & 0x01;
           result = true;
-          break;
-        case 'V':
-          // Show the configuration
-          Serial.print(F("*F: "));
-          Serial.println(cfgData.font);
-          Serial.print(F("*B: "));
-          Serial.println(cfgData.brgt);
-          Serial.print(F("*U: "));
-          Serial.println(cfgData.tmpu ? "C" : "F");
+        }
+        else if (buf[1] == '?') {
+          // Get local echo
+          Serial.print(F("E: "));
+          Serial.println(cfgData.echo);
           result = true;
-          break;
-        case 'W':
-          // Store the configuration
-          cfgWriteEE();
+        }
+        break;
+      case 'L':
+        // ATL Set speaker volume
+        if (len == 1) {
+          cfgData.spkl = 0x00;
           result = true;
-          break;
-        case 'Y':
-          // Read the configuration
-          result = cfgReadEE();
-          break;
-      }
+        }
+        else if (buf[1] >= '0' and buf[1] <= '3') {
+          // Set speaker volume
+          cfgData.spkl = (buf[1] - '0') & 0x03;
+          result = true;
+        }
+        else if (buf[1] == '?') {
+          // Get speaker volume level
+          Serial.print(F("L: "));
+          Serial.println(cfgData.spkl);
+          result = true;
+        }
+        break;
+      case 'M':
+        // ATM Speaker control
+        if (len == 1) {
+          cfgData.spkm = 0x00;
+          result = true;
+        }
+        else if (buf[1] >= '0' and buf[1] <= '3') {
+          // Set speaker on or off mode
+          cfgData.spkm = (buf[1] - '0') & 0x03;
+          result = true;
+        }
+        else if (buf[1] == '?') {
+          // Get speaker mode
+          Serial.print(F("M: "));
+          Serial.println(cfgData.spkm);
+          result = true;
+        }
+        break;
+      case '?':
+        // Help message
+        Serial.println(F("AT?"));
+        Serial.println(F("AT*Fn"));
+        Serial.println(F("AT*Bn"));
+        Serial.println(F("AT*Un"));
+        Serial.println(F("AT*T=\"YYYY/MM/DD HH:MM:SS\""));
+        Serial.println(F("AT&F"));
+        Serial.println(F("AT&V"));
+        Serial.println(F("AT&W"));
+        Serial.println(F("AT&Y"));
+        result = true;
+        break;
+      default:
+        if (len == 0)
+          result = true;
     }
-    else if (buf[0] == 'I' and len == 1) {
-      // ATI
-      showBanner();
-      Serial.println(__DATE__);
-      result = true;
-    }
-    else if (buf[0] == 'E') {
-      // ATL Set local echo
-      if (len == 1) {
-        cfgData.echo = 0x00;
-        result = true;
-      }
-      else if (buf[1] >= '0' and buf[1] <= '1') {
-        // Set echo on or off
-        cfgData.echo = (buf[1] - '0') & 0x01;
-        result = true;
-      }
-      else if (buf[1] == '?') {
-        // Get local echo
-        Serial.print(F("E: "));
-        Serial.println(cfgData.echo);
-        result = true;
-      }
-    }
-    else if (buf[0] == 'L') {
-      // ATL Set speaker volume
-      if (len == 1) {
-        cfgData.spkl = 0x00;
-        result = true;
-      }
-      else if (buf[1] >= '0' and buf[1] <= '3') {
-        // Set speaker volume
-        cfgData.spkl = (buf[1] - '0') & 0x03;
-        result = true;
-      }
-      else if (buf[1] == '?') {
-        // Get speaker volume level
-        Serial.print(F("L: "));
-        Serial.println(cfgData.spkl);
-        result = true;
-      }
-    }
-    else if (buf[0] == 'M') {
-      // ATM Speaker control
-      if (len == 1) {
-        cfgData.spkm = 0x00;
-        result = true;
-      }
-      else if (buf[1] >= '0' and buf[1] <= '3') {
-        // Set speaker on or off mode
-        cfgData.spkm = (buf[1] - '0') & 0x03;
-        result = true;
-      }
-      else if (buf[1] == '?') {
-        // Get speaker mode
-        Serial.print(F("M: "));
-        Serial.println(cfgData.spkm);
-        result = true;
-      }
-    }
-    else if (buf[0] == '?' and len == 1) {
-      // Help message
-      Serial.println(F("AT?"));
-      Serial.println(F("AT*Fn"));
-      Serial.println(F("AT*Bn"));
-      Serial.println(F("AT*Un"));
-      Serial.println(F("AT*T=\"YYYY/MM/DD HH:MM:SS\""));
-      Serial.println(F("AT&F"));
-      Serial.println(F("AT&V"));
-      Serial.println(F("AT&W"));
-      Serial.println(F("AT&Y"));
-      result = true;
-    }
-    else if (len == 0)
-      result = true;
-  }
 
-  if (len >= 0) {
-    if (result)
-      Serial.println(F("OK"));
-    else
-      Serial.println(F("ERROR"));
+    if (len >= 0) {
+      if (result)
+        Serial.println(F("OK"));
+      else
+        Serial.println(F("ERROR"));
 
-    // Force time display
-    mtxShowTime = true;
-    Serial.flush();
+      // Force time display
+      mtxShowTime = true;
+      Serial.flush();
+    }
   }
 }
 
