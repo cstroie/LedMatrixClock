@@ -27,7 +27,7 @@
 #include "DS3231.h"
 
 const char DEVNAME[] = "LedMatrix Clock";
-const char VERSION[] = "2.4";
+const char VERSION[] = "2.5";
 
 // Pin definitions
 const int CS_PIN    = 10; // ~SS
@@ -103,7 +103,7 @@ uint8_t cfgEECRC(struct cfgEE_t cfg) {
   // Compute the CRC8 checksum of the data
   uint8_t crc8 = 0;
   for (uint8_t i = 0; i < sizeof(cfg) - 1; i++)
-    crc8 = CRC8(crc8, cfgData.data[i]);
+    crc8 = CRC8(crc8, cfg.data[i]);
   return crc8;
 }
 
@@ -490,6 +490,9 @@ void handleHayes() {
             Serial.print(F("*F: ")); Serial.print(cfgData.font); Serial.print(F("; "));
             Serial.print(F("*D: ")); Serial.print(cfgData.dst);  Serial.print(F("; "));
             Serial.print(F("*U: ")); Serial.print(cfgData.tmpu ? "C" : "F"); Serial.println(F("; "));
+            Serial.print(F("E: ")); Serial.print(cfgData.echo); Serial.print(F("; "));
+            Serial.print(F("L: ")); Serial.print(cfgData.spkl); Serial.print(F("; "));
+            Serial.print(F("M: ")); Serial.print(cfgData.spkm); Serial.println(F("; "));
             result = true;
             break;
           case 'W': // Store the configuration
