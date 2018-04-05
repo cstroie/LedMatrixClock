@@ -28,7 +28,7 @@
 
 // Software name and vesion
 const char DEVNAME[] PROGMEM = "LedMatrix Clock";
-const char VERSION[] PROGMEM = "2.5";
+const char VERSION[] PROGMEM = "2.6";
 
 // Pin definitions
 const int CS_PIN    = 10; // ~SS
