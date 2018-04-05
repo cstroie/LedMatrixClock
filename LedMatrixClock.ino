@@ -36,8 +36,9 @@ const int BEEP_PIN  = 2;
 
 // The RTC
 DS3231 rtc;
-uint32_t rtcDelayCheck  = 1000UL;
-uint32_t rtcLastCheck   = 0UL;
+uint32_t  mtxDisplayWait  = 1000UL;                             // Wait interval
+uint32_t  mtxDisplayUntil = 0UL;                                // Display check until
+bool      mtxDisplayNow   = true;                               // Force display
 
 // The matrix object
 #define MATRICES  4
@@ -48,7 +49,13 @@ DotMatrix mtx = DotMatrix();
 uint32_t brgtDelayCheck  = 100UL;
 uint32_t brgtLastCheck   = 0UL;
 
-
+// Display modes
+enum      mtxModes {MODE_HHMM, MODE_SS, MODE_DDMM, MODE_YY,
+                    MODE_TEMP, MODE_VCC, MODE_MCU, MODE_ALL
+                   };
+uint8_t   mtxMode       = MODE_HHMM;                            // Initial mode
+uint32_t  mtxModeUntil  = 0UL;                                  // Expiration time, 0 is never
+uint32_t  mtxModeWait   = 10000UL;                              // Expiration interval
 
 // Define the configuration type
 struct cfgEE_t {
@@ -73,9 +80,6 @@ struct cfgEE_t {
 struct cfgEE_t  cfgData;
 // EEPROM address to store the configuration to
 uint16_t        cfgEEAddress = 0x0180;
-
-// Show time independently of minutes changing
-bool mtxShowTime = true;
 
 
 /**
@@ -205,6 +209,18 @@ uint8_t brightness() {
 }
 
 /**
+  Short BEEP
+
+  @param duration beep duration in ms
+*/
+void beep(uint16_t duration = 20) {
+  pinMode(BEEP_PIN, OUTPUT);
+  digitalWrite(BEEP_PIN, HIGH);
+  delay(duration);
+  digitalWrite(BEEP_PIN, LOW);
+}
+
+/**
   Show the time specfied in unpacked BCD (4 bytes)
 */
 void showTimeBCD(uint8_t* HHMM) {
@@ -241,9 +257,30 @@ void showTime(uint8_t hh, uint8_t mm) {
 }
 
 /**
-  Show the temperature
+  Check and display mode HHMM
 */
-void showTemperature() {
+void showModeHHMM() {
+  if (rtc.rtcOk) {
+    // Check the alarms, the Alarm 2 triggers once per minute
+    if ((rtc.checkAlarms() & 0x02) or mtxDisplayNow) {
+      // Read the RTC, in BCD format
+      bool newHour = rtc.readTimeBCD();
+      // Check DST adjustments each new hour and read RTC if adjusted
+      if (newHour)
+        if (checkDST())
+          rtc.readTimeBCD();
+      // Show the time
+      showTimeBCD(rtc.R);
+      // Beep each hour, on the dot
+      if (newHour and (cfgData.spkm & 0x01)) beep();
+    }
+  }
+}
+
+/**
+  Display the mode TEMP
+*/
+void showModeTEMP() {
   // Get the temperature
   int8_t temp = rtc.readTemperature(cfgData.tmpu);
 
@@ -266,15 +303,16 @@ void showTemperature() {
 }
 
 /**
-  Short BEEP
+  Set the display mode
 
-  @param duration beep duration in ms
+  @param mode the chosen mode
 */
-void beep(uint16_t duration = 20) {
-  pinMode(BEEP_PIN, OUTPUT);
-  digitalWrite(BEEP_PIN, HIGH);
-  delay(duration);
-  digitalWrite(BEEP_PIN, LOW);
+void mtxSetMode(uint8_t mode) {
+  mtxMode = mode % MODE_ALL;
+  if (mtxMode <= MODE_SS) mtxModeUntil =  0UL;                    // Never expire for HHMM and SS
+  else                    mtxModeUntil = millis() + mtxModeWait;  // Expire after a while
+  // Force display
+  mtxDisplayNow = true;
 }
 
 /**
@@ -336,13 +374,13 @@ void handleHayes() {
           case 'D': // DST switch
             if (len == 2) {
               cfgData.dst = 0x00;
-              mtxShowTime = true;
+              mtxDisplayNow = true;
               result = true;
             }
             else if (buf[2] >= '0' and buf[2] <= '1') {
               // Set DST
               cfgData.dst = (buf[2] - '0') & 0x01;
-              mtxShowTime = true;
+              mtxDisplayNow = true;
               result = true;
             }
             else if (buf[2] == '?') {
@@ -592,7 +630,7 @@ void handleHayes() {
       else        Serial.println(F("ERROR"));
 
       // Force time display
-      mtxShowTime = true;
+      mtxDisplayNow = true;
       Serial.flush();
     }
   }
@@ -772,7 +810,7 @@ void setup() {
     // Check DST adjustments
     checkDST();
     // Show the temperature
-    showTemperature();
+    showModeTEMP();
     delay(2000);
   }
 }
@@ -793,23 +831,24 @@ void loop() {
     }
   }
 
-  // Display
-  if ((rtc.rtcOk and (millis() - rtcLastCheck > rtcDelayCheck)) or mtxShowTime) {
-    rtcLastCheck = millis();
-    // Check the alarms, the Alarm 2 triggers once per minute
-    if ((rtc.checkAlarms() & 0x02) or mtxShowTime) {
-      // Read the RTC, in BCD format
-      bool newHour = rtc.readTimeBCD();
-      // Check DST adjustments each new hour and read RTC if adjusted
-      if (newHour)
-        if (checkDST())
-          rtc.readTimeBCD();
-      // Show the time
-      showTimeBCD(rtc.R);
-      // Reset the forced show time flag
-      mtxShowTime = false;
-      // Beep each hour, on the dot
-      if (newHour and (cfgData.spkm & 0x01)) beep();
+  // Display, check once in a while or force
+  if ((millis() > mtxDisplayUntil) or mtxDisplayNow) {
+    mtxDisplayUntil = millis() + mtxDisplayWait;
+    switch (mtxMode) {
+      case MODE_TEMP: // RTC temperature
+        showModeTEMP();
+        break;
+      default:        // Hours and minutes
+        showModeHHMM();
     }
+    // Reset the forced show time flag
+    mtxDisplayNow = false;
+  }
+
+  // Check if the display mode expired
+  if (mtxModeUntil > 0 and millis() > mtxModeUntil) {
+    // Return to default mode, never expiring
+    mtxMode       = MODE_HHMM;
+    mtxModeUntil  = 0;
   }
 }
