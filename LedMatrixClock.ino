@@ -26,8 +26,8 @@
 #include "DotMatrix.h"
 #include "DS3231.h"
 
-const char DEVNAME[] = "LedMatrix Clock";
-const char VERSION[] = "2.4";
+const char DEVNAME[] PROGMEM = "LedMatrix Clock";
+const char VERSION[] PROGMEM = "2.5";
 
 // Pin definitions
 const int CS_PIN    = 10; // ~SS
@@ -42,6 +42,11 @@ uint32_t rtcLastCheck   = 0UL;
 #define MATRICES  4
 #define SCANLIMIT 8
 DotMatrix mtx = DotMatrix();
+
+// Automatic brightness steps
+uint32_t brgtDelayCheck  = 100UL;
+uint32_t brgtLastCheck   = 0UL;
+
 
 
 // Define the configuration type
@@ -184,10 +189,14 @@ bool cfgDefaults() {
   Compute the brightness
 */
 uint8_t brightness() {
+  static uint16_t lstLight = analogRead(A0);
   if (cfgData.aubr) {
     // Automatic, read the LDR connected to A0
-    uint16_t light = analogRead(A0);
-    return map(light, 0, 1023, cfgData.mnbr, cfgData.mxbr);
+    uint16_t nowLight = analogRead(A0);
+    // Exponential smooth 12.5%
+    lstLight = ((lstLight << 3) - lstLight + nowLight + 4) >> 3;
+    // Map in min..max range
+    return map(lstLight, 0, 1023, cfgData.mnbr, cfgData.mxbr);
   }
   else
     // Manual
@@ -606,9 +615,11 @@ bool checkDST() {
   Print the banner to serial console
 */
 void showBanner() {
-  Serial.print(DEVNAME);
-  Serial.print(" ");
-  Serial.println(VERSION);
+  char buf[40] = "";
+  strcpy_P(buf, DEVNAME);
+  strcat_P(buf, PSTR(" "));
+  strcat_P(buf, VERSION);
+  Serial.println(buf);
 }
 
 /**
@@ -731,7 +742,7 @@ void setup() {
   mtx.decodemode(0);
   // Clear the display
   mtx.clear();
-  // FIXME Set the brightness
+  // Set the brightness
   mtx.intensity(brightness());
   // Power on the matrices
   mtx.shutdown(false);
@@ -770,6 +781,15 @@ void loop() {
   if (Serial.available())
     handleHayes();
 
+  // Automatic brightness check and adjustment
+  if (cfgData.aubr) {
+    if (millis() - brgtLastCheck > brgtDelayCheck) {
+      brgtLastCheck = millis();
+      mtx.intensity(brightness());
+    }
+  }
+
+  // Display
   if ((rtc.rtcOk and (millis() - rtcLastCheck > rtcDelayCheck)) or mtxShowTime) {
     rtcLastCheck = millis();
     // Check the alarms, the Alarm 2 triggers once per minute
