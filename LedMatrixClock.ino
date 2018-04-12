@@ -315,7 +315,7 @@ void showModeTEMP() {
 void mtxSetMode(uint8_t mode) {
   mtxMode = mode % MODE_ALL;
   if (mtxMode <= MODE_SS) mtxModeUntil =  0UL;                    // Never expire for HHMM and SS
-  else                    mtxModeUntil = millis() + mtxModeWait;  // Expire after a while
+  else                    mtxModeUntil =  millis() + mtxModeWait; // Expire after a while
   // Force display
   mtxDisplayNow = true;
 }
@@ -337,9 +337,11 @@ void handleHayes() {
     }
     // Check the first character, could be a symbol or a letter
     switch (buf[0]) {
-      case '*': // Our extension, one letter and 1..2 digits (0-99), or '?', '='
+      // Our extension, one letter and 1..2 digits (0-99), or '?', '='
+      case '*':
         switch (buf[1]) {
-          case 'A': // Auto brightness switch
+          // Auto brightness switch
+          case 'A':
             if (len == 2) {
               cfgData.aubr = 0x00;
               mtx.intensity(brightness());
@@ -357,7 +359,9 @@ void handleHayes() {
               result = true;
             }
             break;
-          case 'B': // Brightness
+
+          // Brightness
+          case 'B':
             if (buf[2] >= '0' and buf[2] <= '9') {
               // Set brightness
               uint8_t brgt = buf[2] - '0';
@@ -376,7 +380,9 @@ void handleHayes() {
               result = true;
             }
             break;
-          case 'D': // DST switch
+
+          // DST switch
+          case 'D':
             if (len == 2) {
               cfgData.dst = 0x00;
               mtxDisplayNow = true;
@@ -394,7 +400,9 @@ void handleHayes() {
               result = true;
             }
             break;
-          case 'F': // Font
+
+          // Font
+          case 'F':
             if (buf[2] >= '0' and buf[2] <= '9') {
               // Set font
               uint8_t font = buf[2] - '0';
@@ -411,7 +419,9 @@ void handleHayes() {
               result = true;
             }
             break;
-          case 'H': // Highest (maximum) auto brightness level
+
+          // Highest (maximum) auto brightness level
+          case 'H':
             if (len == 2) {
               cfgData.mxbr = 0x0F;
               mtx.intensity(brightness());
@@ -427,12 +437,14 @@ void handleHayes() {
               result = true;
             }
             else if (buf[2] == '?') {
-              // Get font
+              // Get higher limit
               Serial.print(F("*H: ")); Serial.println(cfgData.mxbr);
               result = true;
             }
             break;
-          case 'L': // Lowest (minimum) auto brightness level
+
+          // Lowest (minimum) auto brightness level
+          case 'L':
             if (len == 2) {
               cfgData.mnbr = 0x00;
               mtx.intensity(brightness());
@@ -448,18 +460,43 @@ void handleHayes() {
               result = true;
             }
             else if (buf[2] == '?') {
-              // Get font
+              // Get lower limit
               Serial.print(F("*L: ")); Serial.println(cfgData.mnbr);
               result = true;
             }
             break;
-          case 'M': // MCU temperature
-            if (len == 2) {
+
+          // MCU temperature
+          case 'M':
+            if (len == 2 or buf[2] == '?') {
               Serial.print((float)readMCUTemp() / 100.0, 2); Serial.println(F("C"));
               result = true;
             }
             break;
-          case 'T': // Time and date setting and query
+
+          // Display mode selection
+          case 'O':
+            if (len == 2) {
+              mtxSetMode(MODE_HHMM);
+              result = true;
+            }
+            else if (buf[2] >= '0' and buf[2] <= '9') {
+              uint8_t value = buf[2] - '0';
+              // Read one more char
+              if (buf[3] >= '0' and buf[3] <= '9')
+                value = (value * 10 + (buf[3] - '0')) & 0x0F;
+              mtxSetMode(value);
+              result = true;
+            }
+            else if (buf[2] == '?') {
+              // Get mode
+              Serial.print(F("*O: ")); Serial.println(mtxMode);
+              result = true;
+            }
+            break;
+
+          // Time and date setting and query
+          case 'T':
             //  Usage: AT*T="YYYY/MM/DD HH:MM:SS" or, using date(1),
             //  ( sleep 2 && date "+AT\*T=\"%Y/%m/%d %H:%M:%S\"" ) > /dev/ttyUSB0
             if (buf[2] == '=' and buf[3] == '"') {
@@ -494,7 +531,9 @@ void handleHayes() {
               result = true;
             }
             break;
-          case 'U': // Temperature units and query
+
+          // Temperature units and query
+          case 'U':
             if (buf[2] >= '0' and buf[2] <= '1') {
               // Set temperature units
               cfgData.tmpu = buf[2] == '1' ? true : false;
@@ -522,46 +561,62 @@ void handleHayes() {
               result = true;
             }
             break;
-          case 'V': // Vcc
-            if (len == 2) {
+
+          // Vcc
+          case 'V':
+            if (len == 2 or buf[2] == '?') {
               Serial.print((float)readVcc() / 1000.0, 3); Serial.println(F("V"));
               result = true;
             }
             break;
         }
         break;
-      case '&': // Standard '&' extension
+
+      // Standard '&' extension
+      case '&':
         switch (buf[1]) {
-          case 'F': // Factory defaults
+          // Factory defaults
+          case 'F':
             result = cfgDefaults();
             break;
-          case 'V': // Show the configuration
+
+          // Show the configuration
+          case 'V':
             Serial.print(F("*A: ")); Serial.print(cfgData.aubr); Serial.print(F("; "));
             Serial.print(F("*B: ")); Serial.print(cfgData.brgt); Serial.print(F("; "));
             Serial.print(F("*L: ")); Serial.print(cfgData.mnbr); Serial.print(F("; "));
             Serial.print(F("*H: ")); Serial.print(cfgData.mxbr); Serial.println(F("; "));
             Serial.print(F("*F: ")); Serial.print(cfgData.font); Serial.print(F("; "));
             Serial.print(F("*D: ")); Serial.print(cfgData.dst);  Serial.print(F("; "));
+            Serial.print(F("*O: ")); Serial.print(mtxMode);  Serial.print(F("; "));
             Serial.print(F("*U: ")); Serial.print(cfgData.tmpu ? "C" : "F"); Serial.println(F("; "));
             Serial.print(F("E: ")); Serial.print(cfgData.echo); Serial.print(F("; "));
             Serial.print(F("L: ")); Serial.print(cfgData.spkl); Serial.print(F("; "));
             Serial.print(F("M: ")); Serial.print(cfgData.spkm); Serial.println(F("; "));
             result = true;
             break;
-          case 'W': // Store the configuration
+
+          // Store the configuration
+          case 'W':
             result = cfgWriteEE();
             break;
-          case 'Y': // Read the configuration
+
+          // Read the configuration
+          case 'Y':
             result = cfgReadEE();
             break;
         }
         break;
-      case 'I': // ATI Show info
+
+      // ATI Show info
+      case 'I':
         showBanner();
         Serial.println(__DATE__);
         result = true;
         break;
-      case 'E': // ATE Set local echo
+
+      // ATE Set local echo
+      case 'E':
         if (len == 1) {
           cfgData.echo = 0x00;
           result = true;
@@ -577,7 +632,9 @@ void handleHayes() {
           result = true;
         }
         break;
-      case 'L': // ATL Set speaker volume level
+
+      // ATL Set speaker volume level
+      case 'L':
         if (len == 1) {
           cfgData.spkl = 0x00;
           result = true;
@@ -593,7 +650,9 @@ void handleHayes() {
           result = true;
         }
         break;
-      case 'M': // ATM Speaker control
+
+      // ATM Speaker control
+      case 'M':
         if (len == 1) {
           cfgData.spkm = 0x00;
           result = true;
@@ -609,11 +668,14 @@ void handleHayes() {
           result = true;
         }
         break;
-      case 'Z': // ATZ Reset
+
+      // ATZ Reset
+      case 'Z':
         softReset(WDTO_2S);
         break;
+
+      // Help messages
       case '?':
-        // Help messages
         Serial.println(F("AT?"));
         Serial.println(F("AT*Fn"));
         Serial.println(F("AT*Bn"));
@@ -675,19 +737,11 @@ void showBanner() {
   @return raw analog read value (long)
 */
 long readRaw() {
-  // Set the registers
-  ADCSRA |= _BV(ADPS0) | _BV(ADPS1) | _BV(ADPS2);   // prescaler of 128
-  ADCSRA |= _BV(ADEN);                              // enable the ADC
-  ADCSRA |= _BV(ADIE);                              // enable interrupt
-  // Wait for voltage to settle
+  // Wait for voltage to settle (bandgap stabilizes in 40-80 us)
   delay(10);
-  // Take an ADC reading in sleep mode
-  noInterrupts();
   // Start conversion
   ADCSRA |= _BV(ADSC);
-  set_sleep_mode(SLEEP_MODE_ADC);
-  interrupts();
-  // Awake again, reading should be done, but better make sure
+  // Wait to finish
   while (bit_is_set(ADCSRA, ADSC));
   // Reading register "ADCW" takes care of how to read ADCL and ADCH
   long wADC = ADCW;
@@ -730,8 +784,8 @@ int readMCUTemp() {
   // Raw analog read
   long wADC = readRaw();
 
-  // The returned temperature is in hundreds degrees Celsius; not calibrated
-  return (int)(100 * wADC - 27315);
+  // The returned temperature is in hundredths degrees Celsius; not calibrated
+  return (int)(100 * wADC - 27315L);
 }
 
 /*
@@ -778,6 +832,9 @@ void setup() {
   // Read the configuration from EEPROM or
   // use the defaults if CRC8 does not match
   cfgReadEE(true);
+
+  // Start with a dummy analog read
+  analogRead(A0);
 
   // Init all led matrices
   mtx.init(CS_PIN, MATRICES, SCANLIMIT);
@@ -851,9 +908,7 @@ void loop() {
   }
 
   // Check if the display mode expired
-  if (mtxModeUntil > 0 and millis() > mtxModeUntil) {
+  if (mtxModeUntil > 0 and millis() > mtxModeUntil)
     // Return to default mode, never expiring
-    mtxMode       = MODE_HHMM;
-    mtxModeUntil  = 0;
-  }
+    mtxSetMode(MODE_HHMM);
 }
