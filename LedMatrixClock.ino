@@ -218,10 +218,10 @@ uint8_t brightness() {
 
   @param duration beep duration in ms
 */
-void beep(uint16_t duration = 20) {
+void beep(uint16_t duration = 5) {
   pinMode(BEEP_PIN, OUTPUT);
   digitalWrite(BEEP_PIN, HIGH);
-  delay(duration);
+  delay(duration * cfgData.spkl);
   digitalWrite(BEEP_PIN, LOW);
 }
 
