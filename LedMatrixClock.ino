@@ -33,6 +33,9 @@ const char VERSION[] PROGMEM = "2.6";
 // Pin definitions
 const int CS_PIN    = 10; // ~SS
 const int BEEP_PIN  = 2;
+const int BTN1_PIN  = 3;
+const int BTN2_PIN  = 4;
+const int LIGHT_PIN = A0;
 
 // The RTC
 DS3231 rtc;
@@ -194,10 +197,12 @@ bool cfgDefaults() {
   Compute the brightness
 */
 uint8_t brightness() {
-  static uint16_t lstLight = analogRead(A0);
+  // Use a static variable, one-time initialized with current analog value
+  static uint16_t lstLight = analogRead(LIGHT_PIN);
+  // Check for auto or manual adjustments
   if (cfgData.aubr) {
-    // Automatic, read the LDR connected to A0
-    uint16_t nowLight = analogRead(A0);
+    // Automatic, read the LDR connected to LIGHT_PIN
+    uint16_t nowLight = analogRead(LIGHT_PIN);
     // Exponential smooth 12.5%
     lstLight = ((lstLight << 3) - lstLight + nowLight + 4) >> 3;
     // Map in min..max range
