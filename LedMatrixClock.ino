@@ -28,7 +28,7 @@
 
 // Software name and vesion
 const char DEVNAME[] PROGMEM = "LedMatrix Clock";
-const char VERSION[] PROGMEM = "2.6";
+const char VERSION[] PROGMEM = "2.7";
 
 // Pin definitions
 const int CS_PIN    = 10; // ~SS
@@ -283,11 +283,117 @@ void showModeHHMM() {
 }
 
 /**
+  Check and display mode DDMM
+*/
+void showModeDDMM() {
+  // Read the full RTC time and date
+  if (rtc.rtcOk and rtc.readTime(true)) {
+    // Convert to unpacked BCD, 4 digits and separator
+    uint8_t data[] = {rtc.d / 10, rtc.d % 10, 0x0E, rtc.m / 10, rtc.m % 10};
+
+    // Digits positions and count
+    uint8_t pos[] = {23, 17, 13, 9, 3};
+    uint8_t posCount = sizeof(pos) / sizeof(*pos);
+
+    // Clear the framebuffer
+    mtx.fbClear();
+
+    // Print on framebuffer
+    for (uint8_t d = 0; d < posCount; d++)
+      mtx.fbPrint(pos[d], data[d]);
+
+    // Display the framebuffer
+    mtx.fbDisplay();
+  }
+}
+
+/**
+  Check and display mode YY
+*/
+void showModeYY() {
+  // Read the full RTC time and date
+  if (rtc.rtcOk and rtc.readTime(true)) {
+    // Convert to unpacked BCD, 4 digits and separator
+    uint8_t data[] = {rtc.Y / 1000, (rtc.Y % 1000) / 100, (rtc.Y % 100) / 10, rtc.Y % 10};
+
+    // Digits positions and count
+    uint8_t pos[] = {21, 15, 9, 3};
+    uint8_t posCount = sizeof(pos) / sizeof(*pos);
+
+    // Clear the framebuffer
+    mtx.fbClear();
+
+    // Print on framebuffer
+    for (uint8_t d = 0; d < posCount; d++)
+      mtx.fbPrint(pos[d], data[d]);
+
+    // Display the framebuffer
+    mtx.fbDisplay();
+  }
+}
+
+/**
   Display the mode TEMP
 */
 void showModeTEMP() {
   // Get the temperature
   int8_t temp = rtc.readTemperature(cfgData.tmpu);
+
+  // Create a new array, containing the degree symbol and units letter
+  uint8_t data[] = {0x0B, abs(temp) / 10, abs(temp) % 10, 0x0D, cfgData.tmpu ? 0x0C : 0x0F};
+
+  // Digits positions and count
+  uint8_t pos[] = {27, 21, 15, 9, 3};
+  uint8_t posCount = sizeof(pos) / sizeof(*pos);
+
+  // Clear the framebuffer
+  mtx.fbClear();
+
+  // Print into the framebuffer
+  for (uint8_t d = temp < 0 ? 0 : 1; d < posCount; d++)
+    mtx.fbPrint(pos[d], data[d]);
+
+  // Display the framebuffer
+  mtx.fbDisplay();
+}
+
+/**
+  Check and display mode VCC (supply voltage)
+*/
+void showModeVCC() {
+  // Get the Vcc, mV
+  int16_t vcc = readVcc();
+
+  // Create a new array, containing the value in Volts, with decimal dot
+  uint8_t data[] = {vcc / 1000, 0x0E, (vcc % 1000) / 100, (vcc % 100) / 10, vcc % 10};
+
+  // Digits positions and count
+  uint8_t pos[] = {23, 19, 15, 9, 3};
+  uint8_t posCount = sizeof(pos) / sizeof(*pos);
+
+  // Clear the framebuffer
+  mtx.fbClear();
+
+  // Print on framebuffer
+  for (uint8_t d = 0; d < posCount; d++)
+    mtx.fbPrint(pos[d], data[d]);
+
+  // Display the framebuffer
+  mtx.fbDisplay();
+}
+
+/**
+  Check and display mode MCU (MCU temperature)
+*/
+void showModeMCU() {
+  // Get the MCU temperature
+  uint16_t temp = readMCUTemp();
+  // Convert to Fahrenheit, if required
+  if (not cfgData.tmpu)
+    temp = (int16_t)((float)temp / 100 * 1.8 + 32.0);
+  else
+    // Use integer Celsius degrees
+    temp /= 100;
 
   // Create a new array, containing the degree symbol and units letter
   uint8_t data[] = {0x0B, abs(temp) / 10, abs(temp) % 10, 0x0D, cfgData.tmpu ? 0x0C : 0x0F};
@@ -777,7 +883,7 @@ int readAnalog(uint8_t pin) {
 
   @return temperature in hundredths of degrees Celsius, *calibrated for my device*
 */
-int readMCUTemp() {
+uint16_t readMCUTemp() {
   // Set the internal reference and mux.
   ADMUX = (_BV(REFS1) | _BV(REFS0) | _BV(MUX3));
 
@@ -785,7 +891,7 @@ int readMCUTemp() {
   long wADC = readRaw();
 
   // The returned temperature is in hundredths degrees Celsius; not calibrated
-  return (int)(100 * wADC - 27315L);
+  return (uint16_t)(100 * wADC - 27315L);
 }
 
 /*
@@ -793,7 +899,7 @@ int readMCUTemp() {
 
   @return voltage in millivolts, uncalibrated
 */
-int readVcc() {
+uint16_t readVcc() {
   // Set the reference to Vcc and the measurement to the internal 1.1V reference
   ADMUX = _BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
 
@@ -801,7 +907,7 @@ int readVcc() {
   long wADC = readRaw();
 
   // Return Vcc in mV; 1125300 = 1.1 * 1024 * 1000
-  return (int)(1125300UL / wADC);
+  return (uint16_t)(1125300UL / wADC);
 }
 
 /**
@@ -899,6 +1005,18 @@ void loop() {
     switch (mtxMode) {
       case MODE_TEMP: // RTC temperature
         showModeTEMP();
+        break;
+      case MODE_DDMM: // Day and month
+        showModeDDMM();
+        break;
+      case MODE_YY:   // Year
+        showModeYY();
+        break;
+      case MODE_VCC:  // Year
+        showModeVCC();
+        break;
+      case MODE_MCU:  // Year
+        showModeMCU();
         break;
       default:        // Hours and minutes
         showModeHHMM();
