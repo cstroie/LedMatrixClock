@@ -66,7 +66,7 @@ void DotMatrix::init(uint8_t csPin, uint8_t devices, uint8_t lines) {
   @param value the decoding mode 0..0x0F
 */
 void DotMatrix::decodemode(uint8_t value) {
-  sendAllSPI(OP_DECODEMODE, value & 0x0F);
+  sendAllSPI(OP_DECODE, value & 0x0F);
 }
 
 /**
@@ -76,7 +76,7 @@ void DotMatrix::decodemode(uint8_t value) {
 */
 void DotMatrix::intensity(uint8_t value) {
   if (value <= 0x0F)
-    sendAllSPI(OP_INTENSITY, value);
+    sendAllSPI(OP_INTENS, value);
 }
 
 /**
@@ -86,7 +86,7 @@ void DotMatrix::intensity(uint8_t value) {
 */
 void DotMatrix::scanlimit(uint8_t value) {
   _scanlimit = ((value - 1) & 0x07) + 1;
-  sendAllSPI(OP_SCANLIMIT, _scanlimit - 1);
+  sendAllSPI(OP_SCNLMT, _scanlimit - 1);
 }
 
 /**
@@ -96,7 +96,7 @@ void DotMatrix::scanlimit(uint8_t value) {
 */
 void DotMatrix::shutdown(bool yesno) {
   uint8_t data = yesno ? 0 : 1;
-  sendAllSPI(OP_SHUTDOWN, data);
+  sendAllSPI(OP_SHTDWN, data);
 }
 
 /**
@@ -106,7 +106,7 @@ void DotMatrix::shutdown(bool yesno) {
 */
 void DotMatrix::displaytest(bool yesno) {
   uint8_t data = yesno ? 1 : 0;
-  sendAllSPI(OP_DISPLAYTEST, data);
+  sendAllSPI(OP_DSPTST, data);
 }
 
 /**
