@@ -34,6 +34,13 @@
 DotMatrix::DotMatrix() {
 }
 
+/**
+  Initialize the matrices
+
+  @param csPin the CipSelect pin
+  @param devices the number of matrices
+  @param lines the scan lines number
+*/
 void DotMatrix::init(uint8_t csPin, uint8_t devices, uint8_t lines) {
   /* Pin configuration */
   SPI_CS = csPin;
@@ -53,29 +60,58 @@ void DotMatrix::init(uint8_t csPin, uint8_t devices, uint8_t lines) {
   this->scanlimit(lines);
 }
 
+/**
+  Set the decoding mode
+
+  @param value the decoding mode 0..0x0F
+*/
 void DotMatrix::decodemode(uint8_t value) {
   sendAllSPI(OP_DECODEMODE, value & 0x0F);
 }
 
+/**
+  Set the LED brightness
+
+  @param value the brightness 0..0x0F
+*/
 void DotMatrix::intensity(uint8_t value) {
-  sendAllSPI(OP_INTENSITY, value & 0x0F);
+  if (value <= 0x0F)
+    sendAllSPI(OP_INTENSITY, value);
 }
 
+/**
+  Set the scan limit
+
+  @param value the scan limit 0..0x07
+*/
 void DotMatrix::scanlimit(uint8_t value) {
   _scanlimit = ((value - 1) & 0x07) + 1;
   sendAllSPI(OP_SCANLIMIT, _scanlimit - 1);
 }
 
+/**
+  LEDs off / on
+
+  @param yesno the on/off switch
+*/
 void DotMatrix::shutdown(bool yesno) {
   uint8_t data = yesno ? 0 : 1;
   sendAllSPI(OP_SHUTDOWN, data);
 }
 
+/**
+  Display test mode
+
+  @param yesno the test on/off switch
+*/
 void DotMatrix::displaytest(bool yesno) {
   uint8_t data = yesno ? 1 : 0;
   sendAllSPI(OP_DISPLAYTEST, data);
 }
 
+/**
+  Clear the matrix (all leds off)
+*/
 void DotMatrix::clear() {
   for (uint8_t l = 0; l < _scanlimit; l++)
     sendAllSPI(l + 1, 0x00);
