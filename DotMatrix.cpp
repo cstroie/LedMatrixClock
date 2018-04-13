@@ -255,7 +255,7 @@ void DotMatrix::fbPrint(uint8_t* chars, uint8_t len, bool xorMode) {
     // Check if the character is valid and compute its print and next postions
     // using its limits or use the limits of the digits by default
     uint8_t chr = chars[d] < fontChars ? chars[d] : 0;
-    poss[d] = pos;
+    poss[d] = pos - chrLimits[chr].right;
     pos += chrLimits[chr].width + 1;
   }
 
