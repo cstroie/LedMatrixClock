@@ -28,7 +28,7 @@
 
 // Software name and vesion
 const char DEVNAME[] PROGMEM = "LedMatrix Clock";
-const char VERSION[] PROGMEM = "2.8";
+const char VERSION[] PROGMEM = "2.9";
 
 // Pin definitions
 const int CS_PIN    = 10; // ~SS
@@ -247,12 +247,8 @@ void showTimeBCD(uint8_t* HHMM) {
   // the minutes (2 digits)
   uint8_t data[] = {HHMM[0], HHMM[1], 0x0A, HHMM[2], HHMM[3]};
 
-  // Digits positions and count
-  uint8_t pos[] = {23, 17, 13, 9, 3};
-  uint8_t posCount = sizeof(pos) / sizeof(*pos);
-
   // Print on framebuffer
-  mtx.fbPrint(pos, data, posCount);
+  mtx.fbPrint(data, sizeof(data) / sizeof(*data));
 }
 
 /**
@@ -299,14 +295,10 @@ void showModeSS() {
     // Read seconds
     uint8_t bcdSS = rtc.readSecondsBCD();
     // Convert to unpacked BCD, colon and 2 digits
-    uint8_t data[] = {0x0A, bcdSS / 0x10, bcdSS % 0x10};
-
-    // Digits positions and count
-    uint8_t pos[] = {13, 9, 3};
-    uint8_t posCount = sizeof(pos) / sizeof(*pos);
+    uint8_t data[] = {0xFF, 0xFF, 0x0A, bcdSS / 0x10, bcdSS % 0x10};
 
     // Print on framebuffer
-    mtx.fbPrint(pos, data, posCount);
+    mtx.fbPrint(data, sizeof(data) / sizeof(*data));
   }
 }
 
@@ -317,14 +309,10 @@ void showModeDDMM() {
   // Read the full RTC time and date
   if (rtc.rtcOk and rtc.readTime(true)) {
     // Convert to unpacked BCD, day (2 digits), dot, month (2 digits)
-    uint8_t data[] = {rtc.d / 10, rtc.d % 10, 0x0E, rtc.m / 10, rtc.m % 10};
-
-    // Digits positions and count
-    uint8_t pos[] = {23, 17, 13, 9, 3};
-    uint8_t posCount = sizeof(pos) / sizeof(*pos);
+    uint8_t data[] = {rtc.d / 10, rtc.d % 10, 0x0B, rtc.m / 10, rtc.m % 10};
 
     // Print on framebuffer
-    mtx.fbPrint(pos, data, posCount);
+    mtx.fbPrint(data, sizeof(data) / sizeof(*data));
   }
 }
 
@@ -337,12 +325,8 @@ void showModeYY() {
     // Convert to unpacked BCD, 4 digits
     uint8_t data[] = {rtc.Y / 1000, (rtc.Y % 1000) / 100, (rtc.Y % 100) / 10, rtc.Y % 10};
 
-    // Digits positions and count
-    uint8_t pos[] = {21, 15, 9, 3};
-    uint8_t posCount = sizeof(pos) / sizeof(*pos);
-
     // Print on framebuffer
-    mtx.fbPrint(pos, data, posCount);
+    mtx.fbPrint(data, sizeof(data) / sizeof(*data));
   }
 }
 
@@ -353,15 +337,20 @@ void showModeTEMP() {
   // Get the temperature
   int8_t temp = rtc.readTemperature(cfgData.tmpu);
 
-  // Create a new array, containing the sign, value (2 digits) the degree symbol and units letter
-  uint8_t data[] = {0x0B, abs(temp) / 10, abs(temp) % 10, 0x0D, cfgData.tmpu ? 0x0C : 0x0F};
-
-  // Digits positions and count
-  uint8_t pos[] = {27, 21, 15, 9, 3};
-  uint8_t posCount = sizeof(pos) / sizeof(*pos);
-
-  // Print on framebuffer
-  mtx.fbPrint(pos, data, posCount);
+  // Absolute value
+  uint8_t atemp = abs(temp);
+  if (atemp >= 100) {
+    // Create an array with the sign, value (3 digits) the degree symbol and units letter
+    uint8_t data[] = {temp < 0 ? 0x0E : 0xFF, atemp / 100, (atemp % 100) / 10, atemp % 10, 0x0D, cfgData.tmpu ? 0x0C : 0x0F};
+    // Print on framebuffer
+    mtx.fbPrint(data, sizeof(data) / sizeof(*data));
+  }
+  else {
+    // Create an array with the sign, value (2 digits) the degree symbol and units letter
+    uint8_t data[] = {temp < 0 ? 0x0E : 0xFF, atemp / 10,  atemp % 10, 0x0D, cfgData.tmpu ? 0x0C : 0x0F};
+    // Print on framebuffer
+    mtx.fbPrint(data, sizeof(data) / sizeof(*data));
+  }
 }
 
 /**
@@ -371,15 +360,11 @@ void showModeVCC() {
   // Get the Vcc, mV
   int16_t vcc = readVcc();
 
-  // Create a new array, containing the value in Volts, with decimal dot
-  uint8_t data[] = {vcc / 1000, 0x0E, (vcc % 1000) / 100, (vcc % 100) / 10, vcc % 10};
-
-  // Digits positions and count
-  uint8_t pos[] = {23, 19, 15, 9, 3};
-  uint8_t posCount = sizeof(pos) / sizeof(*pos);
+  // Create an array with the value in Volts, with decimal dot
+  uint8_t data[] = {vcc / 1000, 0x0B, (vcc % 1000) / 100, (vcc % 100) / 10, vcc % 10};
 
   // Print on framebuffer
-  mtx.fbPrint(pos, data, posCount);
+  mtx.fbPrint(data, sizeof(data) / sizeof(*data));
 }
 
 /**
@@ -387,7 +372,7 @@ void showModeVCC() {
 */
 void showModeMCU() {
   // Get the MCU temperature
-  uint16_t temp = readMCUTemp();
+  int16_t temp = readMCUTemp();
   // Convert to Fahrenheit, if required
   if (not cfgData.tmpu)
     temp = (int16_t)((float)temp / 100 * 1.8 + 32.0);
@@ -395,15 +380,20 @@ void showModeMCU() {
     // Use integer Celsius degrees
     temp /= 100;
 
-  // Create a new array, containing the sign, value (2 digits) the degree symbol and units letter
-  uint8_t data[] = {0x0B, abs(temp) / 10, abs(temp) % 10, 0x0D, cfgData.tmpu ? 0x0C : 0x0F};
-
-  // Digits positions and count
-  uint8_t pos[] = {27, 21, 15, 9, 3};
-  uint8_t posCount = sizeof(pos) / sizeof(*pos);
-
-  // Print on framebuffer
-  mtx.fbPrint(pos, data, posCount);
+  // Absolute value
+  uint16_t atemp = abs(temp);
+  if (atemp >= 100) {
+    // Create an array with the sign, value (3 digits) the degree symbol and units letter
+    uint8_t data[] = {temp < 0 ? 0x0E : 0xFF, atemp / 100, (atemp % 100) / 10, atemp % 10, 0x0D, cfgData.tmpu ? 0x0C : 0x0F};
+    // Print on framebuffer
+    mtx.fbPrint(data, sizeof(data) / sizeof(*data));
+  }
+  else {
+    // Create an array with the sign, value (2 digits) the degree symbol and units letter
+    uint8_t data[] = {temp < 0 ? 0x0E : 0xFF, atemp / 10,  atemp % 10, 0x0D, cfgData.tmpu ? 0x0C : 0x0F};
+    // Print on framebuffer
+    mtx.fbPrint(data, sizeof(data) / sizeof(*data));
+  }
 }
 
 /**
@@ -876,7 +866,7 @@ int readAnalog(uint8_t pin) {
 
   @return temperature in hundredths of degrees Celsius, *calibrated for my device*
 */
-uint16_t readMCUTemp() {
+int16_t readMCUTemp() {
   // Set the internal reference and mux.
   ADMUX = (_BV(REFS1) | _BV(REFS0) | _BV(MUX3));
 
@@ -884,7 +874,7 @@ uint16_t readMCUTemp() {
   long wADC = readRaw();
 
   // The returned temperature is in hundredths degrees Celsius; not calibrated
-  return (uint16_t)(100 * wADC - 27315L);
+  return (int16_t)(100 * wADC - 27315L);
 }
 
 /*

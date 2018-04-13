@@ -58,6 +58,8 @@ void DotMatrix::init(uint8_t csPin, uint8_t devices, uint8_t lines) {
   digitalWrite(SPI_CS, HIGH);
   /* Set the scan limit */
   this->scanlimit(lines);
+  /* Set the maximum framebuffer size */
+  maxFB = devices * lines;
 }
 
 /**
@@ -126,7 +128,7 @@ void DotMatrix::loadFont(uint8_t font) {
   uint8_t chrbuf[8] = {0};
   font %= fontCount;
   // Load each character into RAM
-  for (int i = 0; i < fontSize; i++) {
+  for (int i = 0; i < fontChars; i++) {
     // Load into temporary buffer
     memcpy_P(&chrbuf, &FONTS[font][i], 8);
     // Rotate
@@ -138,13 +140,42 @@ void DotMatrix::loadFont(uint8_t font) {
       }
     }
   }
+  // Get the limits of the digits (use character '8')
+  chrDigitLimits = getLimits(0x08);
+  // Get the limits of the punctuation (use character '.')
+  chrPunctLimits = getLimits(0x0A);
+}
+
+/**
+  Get the character limits and width
+
+  @param the character to compute the limits and width for
+  @return the character limits struct
+*/
+chrLimits_t DotMatrix::getLimits(uint8_t ch) {
+  chrLimits_t lmt = {maxWidth, maxWidth, 0};
+  // The characters are already rotated, just find the non-zero bytes
+  for (uint8_t l = 0; l < maxWidth; l++) {
+    // Check for non-zero column
+    if (FONT[ch][l] != 0) {
+      // Keep the rightmost limit
+      if (lmt.right == maxWidth) lmt.right = l;
+      // Keep the leftmost limit
+      lmt.left = l;
+    }
+  }
+  // If valid, compute the char width
+  if (lmt.right != maxWidth)
+    lmt.width = lmt.left - lmt.right + 1;
+  // Return the result
+  return lmt;
 }
 
 /**
   Clear the framebuffer
 */
 void DotMatrix::fbClear() {
-  memset(fbData, 0, _devices * _scanlimit);
+  memset(fbData, 0, maxFB);
 }
 
 /**
@@ -164,33 +195,97 @@ void DotMatrix::fbDisplay() {
 }
 
 /**
-  Print a charater at the specified position
+  Print a valid character at the specified position
 
   @param pos position (rightmost)
   @param digit the character/digit to print
+  @param xorMode print with XOR
 */
-void DotMatrix::fbPrint(uint8_t pos, uint8_t digit) {
-  for (uint8_t l = 0; l < fontWidth; l++)
-    fbData[pos + l] |= FONT[digit][l];
+void DotMatrix::fbPrint(uint8_t pos, uint8_t digit, bool xorMode) {
+  Serial.print(pos);
+  Serial.print(" ");
+  Serial.println(digit, 16);
+  // Print only if the character is valid
+  if (digit < fontChars)
+    // Process each line of the character
+    for (uint8_t l = 0; l < chrDigitLimits.width; l++)
+      // Print only if inside framebuffer
+      if (pos + l < maxFB)
+        // Print using OR
+        if (xorMode)
+          // Print using XOR
+          fbData[pos + l] ^= FONT[digit][l];
+        else
+          // Print using OR
+          fbData[pos + l] |= FONT[digit][l];
 }
 
 /**
-  Print len charaters at the specified positions
+  Print the characters at the specified positions
 
-  @param pos positions array
+  @param poss positions array
   @param digit the characters array to print
   @param len number of characters
+  @param xorMode print with XOR
 */
-void DotMatrix::fbPrint(uint8_t* poss, uint8_t* chars, uint8_t len) {
+void DotMatrix::fbPrint(uint8_t* poss, uint8_t* chars, uint8_t len, bool xorMode) {
   // Clear the framebuffer
   fbClear();
-
   // Print each character at specified position on framebuffer
   for (uint8_t d = 0; d < len; d++)
-    fbPrint(poss[d], chars[d]);
-
+    fbPrint(poss[d], chars[d], xorMode);
   // Display the framebuffer
   fbDisplay();
+}
+
+/**
+  Print the characters, with auto positioning
+
+  @param digit the characters array to print
+  @param len number of characters
+  @param xorMode print with XOR
+*/
+void DotMatrix::fbPrint(uint8_t* chars, uint8_t len, bool xorMode) {
+  uint8_t poss[maxFB] = {0};
+  uint8_t pos = 0;
+
+  // First, compute the right-aligned positions
+  for (int8_t d = len - 1; d >= 0; d--) {
+    // Check if the character is digit or punctuation and
+    // compute its print and next postion
+    if (isPunct(chars[d])) {
+      poss[d] = pos - chrPunctLimits.right;
+      pos += chrPunctLimits.width + 1;
+    }
+    else {
+      poss[d] = pos - chrDigitLimits.right;
+      pos += chrDigitLimits.width + 1;
+    }
+    Serial.println(poss[d]);
+  }
+
+  Serial.println(pos);
+  // Then, get the offset to center the text
+  uint8_t offset = (maxFB - (pos - 2)) / 2;
+  Serial.println(offset);
+
+  // Finally, add the offset to positions
+  for (uint8_t d = 0; d < len; d++)
+    poss[d] += offset;
+
+  // Print each character at computed position on framebuffer
+  fbPrint(poss, chars, len, xorMode);
+}
+
+/**
+  Check if a character is punctuation or digit
+
+  @param ch the character
+  @return true if puntuation
+*/
+bool DotMatrix::isPunct(uint8_t ch) {
+  // Punctuation characters are 0x0A and 0x0B
+  return ((ch == 0x0A) or (ch == 0x0B));
 }
 
 /**
