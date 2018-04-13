@@ -239,6 +239,8 @@ void beep(uint16_t duration = 5) {
 
 /**
   Show the time specfied in unpacked BCD (4 bytes)
+
+  @param HHMM 4-bytes array containing hours and minutes in unpacked BCD format
 */
 void showTimeBCD(uint8_t* HHMM) {
   // Create a new array, containing the hours (2 digits), the colon symbol and
