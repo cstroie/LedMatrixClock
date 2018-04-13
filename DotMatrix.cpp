@@ -175,6 +175,25 @@ void DotMatrix::fbPrint(uint8_t pos, uint8_t digit) {
 }
 
 /**
+  Print len charaters at the specified positions
+
+  @param pos positions array
+  @param digit the characters array to print
+  @param len number of characters
+*/
+void DotMatrix::fbPrint(uint8_t* poss, uint8_t* chars, uint8_t len) {
+  // Clear the framebuffer
+  fbClear();
+
+  // Print each character at specified position on framebuffer
+  for (uint8_t d = 0; d < len; d++)
+    fbPrint(poss[d], chars[d]);
+
+  // Display the framebuffer
+  fbDisplay();
+}
+
+/**
   Send data to one device
 */
 void DotMatrix::sendSPI(uint8_t matrix, uint8_t reg, uint8_t data) {

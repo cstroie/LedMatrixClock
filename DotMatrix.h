@@ -361,6 +361,7 @@ class DotMatrix {
     void fbClear();
     void fbDisplay();
     void fbPrint(uint8_t pos, uint8_t digit);
+    void fbPrint(uint8_t* poss, uint8_t* chars, uint8_t len);
 
 
 

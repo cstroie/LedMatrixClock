@@ -226,7 +226,7 @@ uint8_t brightness() {
 }
 
 /**
-  Short BEEP
+  Simple short BEEP
 
   @param duration beep duration in ms
 */
@@ -241,22 +241,16 @@ void beep(uint16_t duration = 5) {
   Show the time specfied in unpacked BCD (4 bytes)
 */
 void showTimeBCD(uint8_t* HHMM) {
-  // Create a new array, containing the colon symbol
-  uint8_t HH_MM[] = {HHMM[0], HHMM[1], 0x0A, HHMM[2], HHMM[3]};
+  // Create a new array, containing the hours (2 digits), the colon symbol and
+  // the minutes (2 digits)
+  uint8_t data[] = {HHMM[0], HHMM[1], 0x0A, HHMM[2], HHMM[3]};
 
   // Digits positions and count
   uint8_t pos[] = {23, 17, 13, 9, 3};
   uint8_t posCount = sizeof(pos) / sizeof(*pos);
 
-  // Clear the framebuffer
-  mtx.fbClear();
-
   // Print on framebuffer
-  for (uint8_t d = 0; d < posCount; d++)
-    mtx.fbPrint(pos[d], HH_MM[d]);
-
-  // Display the framebuffer
-  mtx.fbDisplay();
+  mtx.fbPrint(pos, data, posCount);
 }
 
 /**
@@ -309,20 +303,13 @@ void showModeSS() {
     uint8_t pos[] = {13, 9, 3};
     uint8_t posCount = sizeof(pos) / sizeof(*pos);
 
-    // Clear the framebuffer
-    mtx.fbClear();
-
     // Print on framebuffer
-    for (uint8_t d = 0; d < posCount; d++)
-      mtx.fbPrint(pos[d], data[d]);
-
-    // Display the framebuffer
-    mtx.fbDisplay();
+    mtx.fbPrint(pos, data, posCount);
   }
 }
 
 /**
-  Check and display mode DDMM
+  Display mode DDMM
 */
 void showModeDDMM() {
   // Read the full RTC time and date
@@ -334,15 +321,8 @@ void showModeDDMM() {
     uint8_t pos[] = {23, 17, 13, 9, 3};
     uint8_t posCount = sizeof(pos) / sizeof(*pos);
 
-    // Clear the framebuffer
-    mtx.fbClear();
-
     // Print on framebuffer
-    for (uint8_t d = 0; d < posCount; d++)
-      mtx.fbPrint(pos[d], data[d]);
-
-    // Display the framebuffer
-    mtx.fbDisplay();
+    mtx.fbPrint(pos, data, posCount);
   }
 }
 
@@ -359,15 +339,8 @@ void showModeYY() {
     uint8_t pos[] = {21, 15, 9, 3};
     uint8_t posCount = sizeof(pos) / sizeof(*pos);
 
-    // Clear the framebuffer
-    mtx.fbClear();
-
     // Print on framebuffer
-    for (uint8_t d = 0; d < posCount; d++)
-      mtx.fbPrint(pos[d], data[d]);
-
-    // Display the framebuffer
-    mtx.fbDisplay();
+    mtx.fbPrint(pos, data, posCount);
   }
 }
 
@@ -385,15 +358,8 @@ void showModeTEMP() {
   uint8_t pos[] = {27, 21, 15, 9, 3};
   uint8_t posCount = sizeof(pos) / sizeof(*pos);
 
-  // Clear the framebuffer
-  mtx.fbClear();
-
-  // Print into the framebuffer
-  for (uint8_t d = temp < 0 ? 0 : 1; d < posCount; d++)
-    mtx.fbPrint(pos[d], data[d]);
-
-  // Display the framebuffer
-  mtx.fbDisplay();
+  // Print on framebuffer
+  mtx.fbPrint(pos, data, posCount);
 }
 
 /**
@@ -410,15 +376,8 @@ void showModeVCC() {
   uint8_t pos[] = {23, 19, 15, 9, 3};
   uint8_t posCount = sizeof(pos) / sizeof(*pos);
 
-  // Clear the framebuffer
-  mtx.fbClear();
-
   // Print on framebuffer
-  for (uint8_t d = 0; d < posCount; d++)
-    mtx.fbPrint(pos[d], data[d]);
-
-  // Display the framebuffer
-  mtx.fbDisplay();
+  mtx.fbPrint(pos, data, posCount);
 }
 
 /**
@@ -441,15 +400,8 @@ void showModeMCU() {
   uint8_t pos[] = {27, 21, 15, 9, 3};
   uint8_t posCount = sizeof(pos) / sizeof(*pos);
 
-  // Clear the framebuffer
-  mtx.fbClear();
-
-  // Print into the framebuffer
-  for (uint8_t d = temp < 0 ? 0 : 1; d < posCount; d++)
-    mtx.fbPrint(pos[d], data[d]);
-
-  // Display the framebuffer
-  mtx.fbDisplay();
+  // Print on framebuffer
+  mtx.fbPrint(pos, data, posCount);
 }
 
 /**
