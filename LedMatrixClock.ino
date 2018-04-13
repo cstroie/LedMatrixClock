@@ -28,7 +28,7 @@
 
 // Software name and vesion
 const char DEVNAME[] PROGMEM = "LedMatrix Clock";
-const char VERSION[] PROGMEM = "2.7";
+const char VERSION[] PROGMEM = "2.8";
 
 // Pin definitions
 const int CS_PIN    = 10; // ~SS
@@ -49,8 +49,8 @@ bool      mtxDisplayNow   = true;                               // Force display
 DotMatrix mtx = DotMatrix();
 
 // Automatic brightness steps
-uint32_t brgtDelayCheck  = 100UL;
-uint32_t brgtLastCheck   = 0UL;
+uint32_t brgtCheckUntil = 0UL;
+uint32_t brgtCheckWait  = 100UL;
 
 // Display modes
 enum      mtxModes {MODE_HHMM, MODE_SS, MODE_DDMM, MODE_YY,
@@ -197,8 +197,12 @@ bool cfgDefaults() {
   Compute the brightness
 */
 uint8_t brightness() {
-  // Use a static variable, one-time initialized with current analog value
+  // Use a static variable, one-time initialized with currently
+  // read analog value from LDR
   static uint16_t lstLight = analogRead(LIGHT_PIN);
+  // Use another static variable, one-time initialized with currently
+  // computed brightness value
+  static uint8_t lstBrght = map(lstLight, 0, 1023, cfgData.mnbr, cfgData.mxbr);
   // Check for auto or manual adjustments
   if (cfgData.aubr) {
     // Automatic, read the LDR connected to LIGHT_PIN
@@ -206,7 +210,15 @@ uint8_t brightness() {
     // Exponential smooth 12.5%
     lstLight = ((lstLight << 3) - lstLight + nowLight + 4) >> 3;
     // Map in min..max range
-    return map(lstLight, 0, 1023, cfgData.mnbr, cfgData.mxbr);
+    uint8_t brght = map(lstLight, 0, 1023, cfgData.mnbr, cfgData.mxbr);
+    // If not changed, return an invalid value
+    if (brght == lstBrght)
+      return 0xFF;
+    else {
+      // Else, keep the current value and return
+      lstBrght = brght;
+      return brght;
+    }
   }
   else
     // Manual
@@ -283,12 +295,39 @@ void showModeHHMM() {
 }
 
 /**
+  Display mode SS
+*/
+void showModeSS() {
+  // Read the seconds from RTC, as BCD
+  if (rtc.rtcOk) {
+    // Read seconds
+    uint8_t bcdSS = rtc.readSecondsBCD();
+    // Convert to unpacked BCD, colon and 2 digits
+    uint8_t data[] = {0x0A, bcdSS / 0x10, bcdSS % 0x10};
+
+    // Digits positions and count
+    uint8_t pos[] = {13, 9, 3};
+    uint8_t posCount = sizeof(pos) / sizeof(*pos);
+
+    // Clear the framebuffer
+    mtx.fbClear();
+
+    // Print on framebuffer
+    for (uint8_t d = 0; d < posCount; d++)
+      mtx.fbPrint(pos[d], data[d]);
+
+    // Display the framebuffer
+    mtx.fbDisplay();
+  }
+}
+
+/**
   Check and display mode DDMM
 */
 void showModeDDMM() {
   // Read the full RTC time and date
   if (rtc.rtcOk and rtc.readTime(true)) {
-    // Convert to unpacked BCD, 4 digits and separator
+    // Convert to unpacked BCD, day (2 digits), dot, month (2 digits)
     uint8_t data[] = {rtc.d / 10, rtc.d % 10, 0x0E, rtc.m / 10, rtc.m % 10};
 
     // Digits positions and count
@@ -313,7 +352,7 @@ void showModeDDMM() {
 void showModeYY() {
   // Read the full RTC time and date
   if (rtc.rtcOk and rtc.readTime(true)) {
-    // Convert to unpacked BCD, 4 digits and separator
+    // Convert to unpacked BCD, 4 digits
     uint8_t data[] = {rtc.Y / 1000, (rtc.Y % 1000) / 100, (rtc.Y % 100) / 10, rtc.Y % 10};
 
     // Digits positions and count
@@ -339,7 +378,7 @@ void showModeTEMP() {
   // Get the temperature
   int8_t temp = rtc.readTemperature(cfgData.tmpu);
 
-  // Create a new array, containing the degree symbol and units letter
+  // Create a new array, containing the sign, value (2 digits) the degree symbol and units letter
   uint8_t data[] = {0x0B, abs(temp) / 10, abs(temp) % 10, 0x0D, cfgData.tmpu ? 0x0C : 0x0F};
 
   // Digits positions and count
@@ -395,7 +434,7 @@ void showModeMCU() {
     // Use integer Celsius degrees
     temp /= 100;
 
-  // Create a new array, containing the degree symbol and units letter
+  // Create a new array, containing the sign, value (2 digits) the degree symbol and units letter
   uint8_t data[] = {0x0B, abs(temp) / 10, abs(temp) % 10, 0x0D, cfgData.tmpu ? 0x0C : 0x0F};
 
   // Digits positions and count
@@ -991,26 +1030,30 @@ void loop() {
   if (Serial.available())
     handleHayes();
 
+  // Keep the millis
+  uint32_t now = millis();
+
   // Automatic brightness check and adjustment
-  if (cfgData.aubr) {
-    if (millis() - brgtLastCheck > brgtDelayCheck) {
-      brgtLastCheck = millis();
-      mtx.intensity(brightness());
-    }
+  if (cfgData.aubr and (now > brgtCheckUntil)) {
+    brgtCheckUntil = now + brgtCheckWait;
+    mtx.intensity(brightness());
   }
 
   // Display, check once in a while or force
-  if ((millis() > mtxDisplayUntil) or mtxDisplayNow) {
-    mtxDisplayUntil = millis() + mtxDisplayWait;
+  if ((now > mtxDisplayUntil) or mtxDisplayNow) {
+    mtxDisplayUntil = now + mtxDisplayWait;
     switch (mtxMode) {
-      case MODE_TEMP: // RTC temperature
-        showModeTEMP();
+      case MODE_SS:   // Seconds
+        showModeSS();
         break;
       case MODE_DDMM: // Day and month
         showModeDDMM();
         break;
       case MODE_YY:   // Year
         showModeYY();
+        break;
+      case MODE_TEMP: // RTC temperature
+        showModeTEMP();
         break;
       case MODE_VCC:  // Year
         showModeVCC();
@@ -1021,12 +1064,12 @@ void loop() {
       default:        // Hours and minutes
         showModeHHMM();
     }
-    // Reset the forced show time flag
+    // Reset the display now flag
     mtxDisplayNow = false;
   }
 
   // Check if the display mode expired
-  if (mtxModeUntil > 0 and millis() > mtxModeUntil)
+  if (mtxModeUntil > 0 and now > mtxModeUntil)
     // Return to default mode, never expiring
     mtxSetMode(MODE_HHMM);
 }
