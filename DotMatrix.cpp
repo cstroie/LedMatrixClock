@@ -141,9 +141,13 @@ void DotMatrix::loadFont(uint8_t font) {
     }
   }
   // Get the limits of the digits (use character '8')
-  chrDigitLimits = getLimits(0x08);
-  // Get the limits of the punctuation (use character '.')
-  chrPunctLimits = getLimits(0x0A);
+  chrLimits_t lmt = getLimits(0x08);
+  // And use it for all the digits
+  for (uint8_t c = 0; c <= 9; c++)
+    chrLimits[c] = lmt;
+  // Get the limits of all the other characters
+  for (uint8_t c = 0x0A; c < fontChars; c++)
+    chrLimits[c] = getLimits(c);
 }
 
 /**
@@ -202,13 +206,10 @@ void DotMatrix::fbDisplay() {
   @param xorMode print with XOR
 */
 void DotMatrix::fbPrint(uint8_t pos, uint8_t digit, bool xorMode) {
-  Serial.print(pos);
-  Serial.print(" ");
-  Serial.println(digit, 16);
   // Print only if the character is valid
   if (digit < fontChars)
     // Process each line of the character
-    for (uint8_t l = 0; l < chrDigitLimits.width; l++)
+    for (uint8_t l = chrLimits[digit].right; l <= chrLimits[digit].left; l++)
       // Print only if inside framebuffer
       if (pos + l < maxFB)
         // Print using OR
@@ -251,41 +252,24 @@ void DotMatrix::fbPrint(uint8_t* chars, uint8_t len, bool xorMode) {
 
   // First, compute the right-aligned positions
   for (int8_t d = len - 1; d >= 0; d--) {
-    // Check if the character is digit or punctuation and
-    // compute its print and next postion
-    if (isPunct(chars[d])) {
-      poss[d] = pos - chrPunctLimits.right;
-      pos += chrPunctLimits.width + 1;
-    }
-    else {
-      poss[d] = pos - chrDigitLimits.right;
-      pos += chrDigitLimits.width + 1;
-    }
-    Serial.println(poss[d]);
+    // Check if the character is valid and compute its print and next postions
+    // using its limits or use the limits of the digits by default
+    uint8_t chr = chars[d] < fontChars ? chars[d] : 0;
+    poss[d] = pos;
+    pos += chrLimits[chr].width + 1;
   }
 
-  Serial.println(pos);
-  // Then, get the offset to center the text
-  uint8_t offset = (maxFB - (pos - 2)) / 2;
-  Serial.println(offset);
-
-  // Finally, add the offset to positions
-  for (uint8_t d = 0; d < len; d++)
-    poss[d] += offset;
+  // Check if we print inside framebuffer
+  if (pos < maxFB) {
+    // Get the offset to center the text
+    uint8_t offset = (maxFB - (pos - 2)) / 2;
+    // Add the offset to positions
+    for (uint8_t d = 0; d < len; d++)
+      poss[d] += offset;
+  }
 
   // Print each character at computed position on framebuffer
   fbPrint(poss, chars, len, xorMode);
-}
-
-/**
-  Check if a character is punctuation or digit
-
-  @param ch the character
-  @return true if puntuation
-*/
-bool DotMatrix::isPunct(uint8_t ch) {
-  // Punctuation characters are 0x0A and 0x0B
-  return ((ch == 0x0A) or (ch == 0x0B));
 }
 
 /**

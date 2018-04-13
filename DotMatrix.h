@@ -383,13 +383,10 @@ class DotMatrix {
     uint8_t   maxFB = MAXMATRICES * MAXSCANLIMIT;           // Maximum framebuffer size (compute at init)
     uint8_t   cmdBuffer[MAXMATRICES * 2] = {0};
     int       SPI_CS;                                       // Chip Select pin
-    uint8_t   FONT[fontChars][maxWidth];                     // RAM copy of the current font
-
-    struct    chrLimits_t chrDigitLimits;                   // Limits of the digit in the current font
-    struct    chrLimits_t chrPunctLimits;                   // Limits of the punctuation in the current font
+    uint8_t   FONT[fontChars][maxWidth];                    // RAM copy of the current font
+    struct    chrLimits_t chrLimits[fontChars];             // Limits of the characters
 
     chrLimits_t getLimits(uint8_t ch);
-    bool      isPunct(uint8_t ch);
 };
 
 #endif /* DOTMATRIX_H */
