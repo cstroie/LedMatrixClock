@@ -169,6 +169,23 @@ bool DS3231::readTimeBCD() {
 }
 
 /**
+  Read the seconds from the RTC as packed BCD
+
+  @return seconds (BCD)
+*/
+uint8_t DS3231::readSecondsBCD() {
+  Wire.beginTransmission(rtcAddr);
+  Wire.write(RTC_SECONDS);
+  if (Wire.endTransmission() != 0)
+    return false;
+  // Request one byte
+  Wire.requestFrom(rtcAddr, (uint8_t)1);
+
+  // Seconds
+  return Wire.read();
+}
+
+/**
   Read the current temperature from the RTC
 
   @return integer temperature

@@ -60,6 +60,7 @@ class DS3231 {
     bool      init(uint8_t rtcAddr = I2C_RTC, bool twInit = true);
     bool      readTime(bool readDate = false);
     bool      readTimeBCD();
+    uint8_t   readSecondsBCD();
     int8_t    readTemperature(bool metric = true);
     bool      lostPower();
     uint8_t   checkAlarms();
