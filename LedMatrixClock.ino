@@ -28,7 +28,7 @@
 
 // Software name and vesion
 const char DEVNAME[] PROGMEM = "LedMatrix Clock";
-const char VERSION[] PROGMEM = "2.9";
+const char VERSION[] PROGMEM = "2.10";
 
 // Pin definitions
 const int CS_PIN    = 10; // ~SS
@@ -74,8 +74,10 @@ struct cfgEE_t {
       uint8_t spkl: 2;  // Speaker volume level
       uint8_t echo: 1;  // Local echo
       bool    dst:  1;  // DST flag
+      int8_t  kvcc: 8;  // Bandgap correction factor (/1000)
+      int8_t  ktmp: 8;  // MCU temperature correction factor
     };
-    uint8_t data[4];    // We use 4 bytes in the structure
+    uint8_t data[5];    // We use 4 bytes in the structure
   };
   uint8_t crc8;         // CRC8
 };
@@ -190,8 +192,84 @@ bool cfgDefaults() {
   cfgData.spkl = 0x00;
   cfgData.echo = 0x01;
   cfgData.dst  = 0x00;
-  return true;
+  cfgData.kvcc = 0x00;
+  cfgData.ktmp = 0x00;
 };
+
+
+/**
+  Analog raw reading, after a delay, while sleeping, using interrupt
+
+  @return raw analog read value (long)
+*/
+long readRaw() {
+  // Wait for voltage to settle (bandgap stabilizes in 40-80 us)
+  delay(10);
+  // Start conversion
+  ADCSRA |= _BV(ADSC);
+  // Wait to finish
+  while (bit_is_set(ADCSRA, ADSC));
+  // Reading register "ADCW" takes care of how to read ADCL and ADCH
+  long wADC = ADCW;
+  // The returned reading
+  return wADC;
+}
+
+/**
+  Read the analog pin after a delay, while sleeping, using interrupt
+
+  @param pin the analog pin
+  @return raw analog read value
+*/
+int readAnalog(uint8_t pin) {
+  // Allow for channel or pin numbers
+  if (pin >= 14) pin -= 14;
+
+  // Set the analog reference to DEFAULT, select the channel (low 4 bits).
+  // This also sets ADLAR (left-adjust result) to 0 (the default).
+  ADMUX = _BV(REFS0) | (pin & 0x07);
+
+  // Raw analog read
+  long wADC = readRaw();
+
+  // The returned reading
+  return (int)(wADC);
+}
+
+/**
+  Read the internal MCU temperature
+  The internal temperature has to be used with the internal reference of 1.1V.
+  Channel 8 can not be selected with the analogRead function yet.
+
+  @return temperature in hundredths of degrees Celsius, *calibrated for my device*
+*/
+int16_t readMCUTemp(int8_t k = 0) {
+  // Set the internal reference and mux.
+  ADMUX = (_BV(REFS1) | _BV(REFS0) | _BV(MUX3));
+
+  // Raw analog read
+  long wADC = readRaw();
+
+  // The returned temperature is in hundredths degrees Celsius; not calibrated
+  return (int16_t)(100 * wADC - 27315L + k * 100);
+}
+
+/*
+  Read the power supply voltage, by measuring the internal 1V1 reference
+
+  @param k relative bandgap adjustment (/1000)
+  @return voltage in millivolts, uncalibrated
+*/
+uint16_t readVcc(int8_t k = 0) {
+  // Set the reference to Vcc and the measurement to the internal 1.1V reference
+  ADMUX = _BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
+
+  // Raw analog read
+  long wADC = readRaw();
+
+  // Return Vcc in mV; 1125300 = 1.1 * 1024 * 1000
+  return (uint16_t)(1.1 * 1024.0 * (1000 + k) / wADC);
+}
 
 /**
   Compute the brightness
@@ -336,6 +414,8 @@ void showModeYY() {
 void showModeTEMP() {
   // Get the temperature
   int8_t temp = rtc.readTemperature(cfgData.tmpu);
+  // Print to console
+  Serial.print(temp); Serial.println(cfgData.tmpu ? "C" : "F");
 
   // Absolute value
   uint8_t atemp = abs(temp);
@@ -358,7 +438,9 @@ void showModeTEMP() {
 */
 void showModeVCC() {
   // Get the Vcc, mV
-  int16_t vcc = readVcc();
+  int16_t vcc = readVcc(cfgData.kvcc);
+  // Print to console
+  Serial.print((float)vcc / 1000.0, 3); Serial.println("V");
 
   // Create an array with the value in Volts, with decimal dot
   uint8_t data[] = {vcc / 1000, 0x0B, (vcc % 1000) / 100, (vcc % 100) / 10, vcc % 10};
@@ -372,13 +454,15 @@ void showModeVCC() {
 */
 void showModeMCU() {
   // Get the MCU temperature
-  int16_t temp = readMCUTemp();
+  int16_t temp = readMCUTemp(cfgData.ktmp);
   // Convert to Fahrenheit, if required
   if (not cfgData.tmpu)
     temp = (int16_t)((float)temp / 100 * 1.8 + 32.0);
   else
     // Use integer Celsius degrees
     temp /= 100;
+  // Print to console
+  Serial.print(temp); Serial.println(cfgData.tmpu ? "C" : "F");
 
   // Absolute value
   uint16_t atemp = abs(temp);
@@ -555,14 +639,6 @@ void handleHayes() {
             }
             break;
 
-          // MCU temperature
-          case 'M':
-            if (len == 2 or buf[2] == '?') {
-              Serial.print((float)readMCUTemp() / 100.0, 2); Serial.println(F("C"));
-              result = true;
-            }
-            break;
-
           // Display mode selection
           case 'O':
             if (len == 2) {
@@ -647,14 +723,6 @@ void handleHayes() {
               // Show the temperature
               Serial.print((int)rtc.readTemperature(cfgData.tmpu));
               Serial.println(cfgData.tmpu ? "C" : "F");
-              result = true;
-            }
-            break;
-
-          // Vcc
-          case 'V':
-            if (len == 2 or buf[2] == '?') {
-              Serial.print((float)readVcc() / 1000.0, 3); Serial.println(F("V"));
               result = true;
             }
             break;
@@ -818,79 +886,6 @@ void showBanner() {
   strcat_P(buf, PSTR(" "));
   strcat_P(buf, VERSION);
   Serial.println(buf);
-}
-
-/**
-  Analog raw reading, after a delay, while sleeping, using interrupt
-
-  @return raw analog read value (long)
-*/
-long readRaw() {
-  // Wait for voltage to settle (bandgap stabilizes in 40-80 us)
-  delay(10);
-  // Start conversion
-  ADCSRA |= _BV(ADSC);
-  // Wait to finish
-  while (bit_is_set(ADCSRA, ADSC));
-  // Reading register "ADCW" takes care of how to read ADCL and ADCH
-  long wADC = ADCW;
-  // The returned reading
-  return wADC;
-}
-
-/**
-  Read the analog pin after a delay, while sleeping, using interrupt
-
-  @param pin the analog pin
-  @return raw analog read value
-*/
-int readAnalog(uint8_t pin) {
-  // Allow for channel or pin numbers
-  if (pin >= 14) pin -= 14;
-
-  // Set the analog reference to DEFAULT, select the channel (low 4 bits).
-  // This also sets ADLAR (left-adjust result) to 0 (the default).
-  ADMUX = _BV(REFS0) | (pin & 0x07);
-
-  // Raw analog read
-  long wADC = readRaw();
-
-  // The returned reading
-  return (int)(wADC);
-}
-
-/**
-  Read the internal MCU temperature
-  The internal temperature has to be used with the internal reference of 1.1V.
-  Channel 8 can not be selected with the analogRead function yet.
-
-  @return temperature in hundredths of degrees Celsius, *calibrated for my device*
-*/
-int16_t readMCUTemp() {
-  // Set the internal reference and mux.
-  ADMUX = (_BV(REFS1) | _BV(REFS0) | _BV(MUX3));
-
-  // Raw analog read
-  long wADC = readRaw();
-
-  // The returned temperature is in hundredths degrees Celsius; not calibrated
-  return (int16_t)(100 * wADC - 27315L);
-}
-
-/*
-  Read the power supply voltage, by measuring the internal 1V1 reference
-
-  @return voltage in millivolts, uncalibrated
-*/
-uint16_t readVcc() {
-  // Set the reference to Vcc and the measurement to the internal 1.1V reference
-  ADMUX = _BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
-
-  // Raw analog read
-  long wADC = readRaw();
-
-  // Return Vcc in mV; 1125300 = 1.1 * 1024 * 1000
-  return (uint16_t)(1125300UL / wADC);
 }
 
 /**
