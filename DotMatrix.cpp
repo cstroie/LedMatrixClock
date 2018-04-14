@@ -262,7 +262,7 @@ void DotMatrix::fbPrint(uint8_t* chars, uint8_t len, bool xorMode) {
   // Check if we print inside framebuffer
   if (pos < maxFB) {
     // Get the offset to center the text
-    uint8_t offset = (maxFB - (pos - 2)) / 2;
+    uint8_t offset = (maxFB - (pos - 1)) / 2;
     // Add the offset to positions
     for (uint8_t d = 0; d < len; d++)
       poss[d] += offset;
