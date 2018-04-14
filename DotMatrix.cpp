@@ -209,16 +209,16 @@ void DotMatrix::fbPrint(uint8_t pos, uint8_t digit, bool xorMode) {
   // Print only if the character is valid
   if (digit < fontChars)
     // Process each line of the character
-    for (uint8_t l = chrLimits[digit].right; l <= chrLimits[digit].left; l++)
+    for (uint8_t l = 0; l < chrLimits[digit].width; l++)
       // Print only if inside framebuffer
       if (pos + l < maxFB)
         // Print using OR
         if (xorMode)
           // Print using XOR
-          fbData[pos + l] ^= FONT[digit][l];
+          fbData[pos + l] ^= FONT[digit][l + chrLimits[digit].right];
         else
           // Print using OR
-          fbData[pos + l] |= FONT[digit][l];
+          fbData[pos + l] |= FONT[digit][l + chrLimits[digit].right] ;
 }
 
 /**
@@ -255,7 +255,7 @@ void DotMatrix::fbPrint(uint8_t* chars, uint8_t len, bool xorMode) {
     // Check if the character is valid and compute its print and next postions
     // using its limits or use the limits of the digits by default
     uint8_t chr = chars[d] < fontChars ? chars[d] : 0;
-    poss[d] = pos - chrLimits[chr].right;
+    poss[d] = pos;
     pos += chrLimits[chr].width + 1;
   }
 
