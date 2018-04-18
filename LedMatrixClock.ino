@@ -117,6 +117,63 @@ void print_P(const char *str, bool eol = false) {
 }
 
 /**
+  Parse the buffer and return an integer
+
+  @param buf the char buffer to parse
+  @param idx index to start with
+  @param len maximum to parse, 0 for no limit
+  @rertun the integer found or zero
+*/
+int16_t getInteger(char* buf, int8_t idx, uint8_t len = 32) {
+  int16_t result = 0;     // The result
+  bool isNeg = false;     // Negative flag
+  static uint8_t ldx = 0; // Local index, static
+  uint8_t sdx = 0;        // Start index
+
+  // If the specified index is negative, use the last local index;
+  // if it is positive, re-set the local index
+  if (idx >= 0) {
+    // Use the new index
+    ldx = idx;
+    sdx = idx;
+  }
+  // Preamble: find the first sign or digit character
+  while ((ldx - sdx < len)
+         and (buf[ldx] != 0)
+         and (buf[ldx] != '-')
+         and (buf[ldx] != '+')
+         and (not isdigit(buf[ldx])))
+    ldx++;
+  // At this point, check if we have ended the buffer or the length
+  if ((ldx - sdx < len) and (buf[ldx] != 0)) {
+    // Might start with '+' or '-', keep the sign and move forward
+    // only if the sign is the first character ever
+    if (buf[ldx] == '-') {
+      if (idx >= 0) isNeg = true;
+      ldx++;
+    }
+    else if (buf[ldx] == '+') {
+      isNeg = false;
+      ldx++;
+    }
+    // Parse the digits
+    while ((isdigit(buf[ldx]))
+           and (ldx - sdx < len)
+           and (buf[ldx] != 0)) {
+      // Build the result
+      result = (result * 10) + (buf[ldx] - '0');
+      // Move forward
+      ldx++;
+    }
+    // Check if negative
+    if (isNeg)
+      result = -result;
+  }
+  // Return the result
+  return result;
+}
+
+/**
   CRC8 computing
 
   @param inCrc partial CRC
@@ -542,44 +599,6 @@ void mtxSetMode(uint8_t mode) {
 }
 
 /**
-  Parse the buffer and return an integer
-
-  @param buf the char buffer to parse
-  @param idx index to start with
-  @param len maximum to parse, 0 for no limit
-  @rertun the integer found or zero
-*/
-int16_t getInteger(char* buf, uint8_t idx, uint8_t len = 0) {
-  int16_t result = 0;
-  uint8_t i = idx;
-  bool negative = false;
-
-  // Might start with '+' or '-'
-  if (buf[i] == '-') {
-    negative = true;
-    i++;
-  }
-  else if (buf[i] == '+') {
-    negative = false;
-    i++;
-  }
-
-  while (true) {
-    if (buf[i] >= '0' and buf[i] <= '9') {
-      result = (result * 10) + (buf[i] - '0');
-      i++;
-      if (len > 0 and i > len)
-        break;
-    }
-    else
-      break;
-  }
-
-  if (negative) result = -result;
-  return result;
-}
-
-/**
   AT-Hayes style command processing
 */
 void handleHayes() {
@@ -590,12 +609,17 @@ void handleHayes() {
     // Read until newline, no more than 32 chararcters
     len = Serial.readBytesUntil('\r', buf, 32);
     buf[len] = '\0';
+    // Buffer index
+    uint8_t idx = 0;
+    // Uppercase
+    while (buf[idx++])
+      buf[idx] = toupper(buf[idx]);
     // Local terminal echo
     if (cfgData.echo) {
       Serial.print(F("AT")); Serial.println(buf);
     }
-    // Buffer index
-    uint8_t idx = 0;
+    // Reset the buffer index
+    idx = 0;
     // Check the first character, could be a symbol or a letter
     switch (buf[idx++]) { // idx++ -> 1
       // Our extension, one letter and 1..2 digits (0-99), or '?', '='
@@ -603,49 +627,52 @@ void handleHayes() {
         switch (buf[idx++]) { // idx++ -> 2
           // Auto brightness switch
           case 'A':
-            if (len == idx) {
+            if (buf[idx] == '?') {
+              // Get brightness
+              Serial.print(F("*A: ")); Serial.println(cfgData.aubr);
+              result = true;
+            }
+            else if (len == idx) {
               cfgData.aubr = 0x00;
               mtx.intensity(brightness());
               result = true;
             }
-            else if (buf[idx] >= '0' and buf[idx] <= '1') {
+            else if (isdigit(buf[idx])) {
               // Set auto brightness
               cfgData.aubr = (buf[idx] - '0') & 0x01;
               mtx.intensity(brightness());
-              result = true;
-            }
-            else if (buf[idx] == '?') {
-              // Get brightness
-              Serial.print(F("*A: ")); Serial.println(cfgData.aubr);
               result = true;
             }
             break;
 
           // Brightness
           case 'B':
-            if (buf[idx] >= '0' and buf[idx] <= '9') {
-              // Set brightness
-              uint8_t brgt = buf[idx] - '0';
-              // Read one more char
-              idx++; // idx++ -> 3
-              if (buf[idx] >= '0' and buf[idx] <= '9')
-                brgt = (brgt * 10 + (buf[idx] - '0')) % 0x10;
-              cfgData.aubr = false;
-              cfgData.brgt = brgt;
-              // Set the brightness
-              mtx.intensity(brightness());
-              result = true;
-            }
-            else if (buf[idx] == '?') {
+            if (buf[idx] == '?') {
               // Get brightness
               Serial.print(F("*B: ")); Serial.println(cfgData.brgt);
               result = true;
+            }
+            else {
+              // Get the integer value
+              int16_t value = getInteger(buf, idx);
+              if (value >= 0x00 and value <= 0x0F) {
+                cfgData.aubr = false;
+                cfgData.brgt = value;
+                // Set the brightness
+                mtx.intensity(brightness());
+                result = true;
+              }
             }
             break;
 
           // DST switch
           case 'D':
-            if (len == idx) {
+            if (buf[idx] == '?') {
+              // Get DST
+              Serial.print(F("*D: ")); Serial.println(cfgData.dst);
+              result = true;
+            }
+            else if (len == idx) {
               cfgData.dst = 0x00;
               mtxDisplayNow = true;
               result = true;
@@ -656,78 +683,72 @@ void handleHayes() {
               mtxDisplayNow = true;
               result = true;
             }
-            else if (buf[idx] == '?') {
-              // Get DST
-              Serial.print(F("*D: ")); Serial.println(cfgData.dst);
-              result = true;
-            }
             break;
 
           // Font
           case 'F':
-            if (buf[idx] >= '0' and buf[idx] <= '9') {
-              // Set font
-              uint8_t font = buf[idx] - '0';
-              // Read one more char
-              idx++; // idx++ -> 3
-              if (buf[idx] >= '0' and buf[idx] <= '9')
-                font = (font * 10 + (buf[idx] - '0')) % fontCount;
-              cfgData.font = font;
-              mtx.loadFont(cfgData.font);
-              result = true;
-            }
-            else if (buf[idx] == '?') {
+            if (buf[idx] == '?') {
               // Get font
               Serial.print(F("*F: ")); Serial.println(cfgData.font);
               result = true;
+            }
+            else {
+              // Get the integer value
+              int16_t value = getInteger(buf, idx);
+              if (value >= 0x00 and value < fontCount) {
+                cfgData.font = value;
+                // Set the font
+                mtx.loadFont(cfgData.font);
+                result = true;
+              }
             }
             break;
 
           // Highest (maximum) auto brightness level
           case 'H':
-            if (len == idx) {
+            if (buf[idx] == '?') {
+              // Get higher limit
+              Serial.print(F("*H: ")); Serial.println(cfgData.mxbr);
+              result = true;
+            }
+            else if (len == idx) {
               cfgData.mxbr = 0x0F;
               mtx.intensity(brightness());
               result = true;
             }
-            else if (buf[idx] >= '0' and buf[idx] <= '9') {
-              uint8_t value = buf[idx] - '0';
-              // Read one more char
-              idx++; // idx++ -> 3
-              if (buf[idx] >= '0' and buf[idx] <= '9')
-                value = (value * 10 + (buf[idx] - '0')) & 0x0F;
-              cfgData.mxbr = value;
-              mtx.intensity(brightness());
-              result = true;
-            }
-            else if (buf[idx] == '?') {
-              // Get higher limit
-              Serial.print(F("*H: ")); Serial.println(cfgData.mxbr);
-              result = true;
+            else {
+              // Get the integer value
+              int16_t value = getInteger(buf, idx);
+              if (value >= 0x00 and value < 0x0F) {
+                // Set the maximum brightness
+                cfgData.mxbr = value;
+                mtx.intensity(brightness());
+                result = true;
+              }
             }
             break;
 
           // Lowest (minimum) auto brightness level
           case 'L':
-            if (len == idx) {
+            if (buf[idx] == '?') {
+              // Get lower limit
+              Serial.print(F("*L: ")); Serial.println(cfgData.mnbr);
+              result = true;
+            }
+            else if (len == idx) {
               cfgData.mnbr = 0x00;
               mtx.intensity(brightness());
               result = true;
             }
-            else if (buf[idx] >= '0' and buf[idx] <= '9') {
-              uint8_t value = buf[idx] - '0';
-              // Read one more char
-              idx++; // idx++ -> 3
-              if (buf[idx] >= '0' and buf[idx] <= '9')
-                value = (value * 10 + (buf[idx] - '0')) & 0x0F;
-              cfgData.mnbr = value;
-              mtx.intensity(brightness());
-              result = true;
-            }
-            else if (buf[idx] == '?') {
-              // Get lower limit
-              Serial.print(F("*L: ")); Serial.println(cfgData.mnbr);
-              result = true;
+            else {
+              // Get the integer value
+              int16_t value = getInteger(buf, idx);
+              if (value >= 0x00 and value < 0x0F) {
+                // Set the minimum brightness
+                cfgData.mnbr = value;
+                mtx.intensity(brightness());
+                result = true;
+              }
             }
             break;
 
@@ -738,8 +759,10 @@ void handleHayes() {
               result = true;
             }
             else {
-              int16_t value = getInteger(buf, idx, 5);
+              // Get the integer value
+              int16_t value = getInteger(buf, idx);
               if (value > -127 and value < 127) {
+                // Set the temperature correction factor
                 cfgData.ktmp = value;
                 result = true;
               }
@@ -748,23 +771,23 @@ void handleHayes() {
 
           // Display mode selection
           case 'O':
-            if (len == idx) {
-              mtxSetMode(MODE_HHMM);
-              result = true;
-            }
-            else if (buf[idx] >= '0' and buf[idx] <= '9') {
-              uint8_t value = buf[idx] - '0';
-              // Read one more char
-              idx++; // idx++ -> 3
-              if (buf[idx] >= '0' and buf[idx] <= '9')
-                value = (value * 10 + (buf[idx] - '0')) & 0x0F;
-              mtxSetMode(value);
-              result = true;
-            }
-            else if (buf[idx] == '?') {
+            if (buf[idx] == '?') {
               // Get mode
               Serial.print(F("*O: ")); Serial.println(mtxMode);
               result = true;
+            }
+            else if (len == idx) {
+              mtxSetMode(MODE_HHMM);
+              result = true;
+            }
+            else {
+              // Get the integer value
+              int16_t value = getInteger(buf, idx);
+              if (value >= 0x00 and value < 0x0F) {
+                // Set the mode
+                mtxSetMode(value);
+                result = true;
+              }
             }
             break;
 
@@ -772,27 +795,7 @@ void handleHayes() {
           case 'T':
             //  Usage: AT*T="YYYY/MM/DD HH:MM:SS" or, using date(1),
             //  ( sleep 2 && date "+AT\*T=\"%Y/%m/%d %H:%M:%S\"" ) > /dev/ttyUSB0
-            if (buf[idx] == '=' and buf[idx + 1] == '"') {
-              // Set time and date
-              uint16_t  year  = Serial.parseInt();
-              uint8_t   month = Serial.parseInt();
-              uint8_t   day   = Serial.parseInt();
-              uint8_t   hour  = Serial.parseInt();
-              uint8_t   min   = Serial.parseInt();
-              uint8_t   sec   = Serial.parseInt();
-              if (year != 0 and month != 0 and day != 0) {
-                // The date is quite valid, set the clock to 00:00:00 if not
-                // specified
-                rtc.writeDateTime(sec, min, hour, day, month, year);
-                // Check if DST and set the flag
-                cfgData.dst = rtc.dstCheck(year, month, day, hour);
-                // Store the configuration
-                cfgWriteEE();
-                // TODO Check
-                result = true;
-              }
-            }
-            else if (buf[idx] == '?') {
+            if (buf[idx] == '?') {
               // Get time and date
               rtc.readTime(true);
               Serial.print(rtc.Y); Serial.print(F("/"));
@@ -803,11 +806,40 @@ void handleHayes() {
               Serial.print(rtc.S); Serial.println();
               result = true;
             }
+            else if (buf[idx] == '=') {
+              // Set time and date
+              uint16_t  year    = getInteger(buf, idx);
+              uint8_t   month   = getInteger(buf, -1);
+              uint8_t   day     = getInteger(buf, -1);
+              uint8_t   hour    = getInteger(buf, -1);
+              uint8_t   minute  = getInteger(buf, -1);
+              uint8_t   second  = getInteger(buf, -1);
+              if (year >= 1900  and year<2100     and
+                  month >= 1    and month <= 12   and
+                  day >= 1      and day <= 31     and
+                  hour >= 0     and hour <= 23    and
+                  minute >= 0   and minute <= 59  and
+                  second >= 0   and second <= 59 ) {
+                // The date is quite valid, set the clock to 00:00:00 if not
+                // specified
+                rtc.writeDateTime(second, minute, hour, day, month, year);
+                // Check if DST and set the flag
+                cfgData.dst = rtc.dstCheck(year, month, day, hour);
+                // Store the configuration
+                cfgWriteEE();
+                result = true;
+              }
+            }
             break;
 
           // Temperature units and query
           case 'U':
-            if (buf[idx] >= '0' and buf[idx] <= '1') {
+            if (len == idx or buf[idx] == '?') {
+              // Get temperature units
+              Serial.print(F("*U: ")); Serial.println(cfgData.tmpu ? "C" : "F");
+              result = true;
+            }
+            else if (buf[idx] >= '0' and buf[idx] <= '1') {
               // Set temperature units
               cfgData.tmpu = buf[idx] == '1' ? true : false;
               result = true;
@@ -822,17 +854,6 @@ void handleHayes() {
               cfgData.tmpu = false;
               result = true;
             }
-            else if (buf[idx] == '?') {
-              // Get temperature units
-              Serial.print(F("*U: ")); Serial.println(cfgData.tmpu ? "C" : "F");
-              result = true;
-            }
-            else if (len == idx) {
-              // Show the temperature
-              Serial.print((int)rtc.readTemperature(cfgData.tmpu));
-              Serial.println(cfgData.tmpu ? "C" : "F");
-              result = true;
-            }
             break;
 
           // Supply voltage correction factor
@@ -842,8 +863,10 @@ void handleHayes() {
               result = true;
             }
             else {
-              int16_t value = getInteger(buf, idx, 5);
+              // Get the integer value
+              int16_t value = getInteger(buf, idx);
               if (value > -127 and value < 127) {
+                // Set the voltage correction factor
                 cfgData.kvcc = value;
                 result = true;
               }
@@ -893,18 +916,18 @@ void handleHayes() {
 
       // ATE Set local echo
       case 'E':
-        if (len == idx) {
+        if (buf[idx] == '?') {
+          // Get local echo
+          Serial.print(F("E: ")); Serial.println(cfgData.echo);
+          result = true;
+        }
+        else if (len == idx) {
           cfgData.echo = 0x00;
           result = true;
         }
         else if (buf[idx] >= '0' and buf[idx] <= '1') {
           // Set echo on or off
           cfgData.echo = (buf[idx] - '0') & 0x01;
-          result = true;
-        }
-        else if (buf[idx] == '?') {
-          // Get local echo
-          Serial.print(F("E: ")); Serial.println(cfgData.echo);
           result = true;
         }
         break;
@@ -934,7 +957,12 @@ void handleHayes() {
 
       // ATL Set speaker volume level
       case 'L':
-        if (len == idx) {
+        if (buf[idx] == '?') {
+          // Get speaker volume level
+          Serial.print(F("L: ")); Serial.println(cfgData.spkl);
+          result = true;
+        }
+        else if (len == idx) {
           cfgData.spkl = 0x00;
           result = true;
         }
@@ -943,16 +971,16 @@ void handleHayes() {
           cfgData.spkl = (buf[idx] - '0') & 0x03;
           result = true;
         }
-        else if (buf[idx] == '?') {
-          // Get speaker volume level
-          Serial.print(F("L: ")); Serial.println(cfgData.spkl);
-          result = true;
-        }
         break;
 
       // ATM Speaker control
       case 'M':
-        if (len == idx) {
+        if (buf[idx] == '?') {
+          // Get speaker mode
+          Serial.print(F("M: ")); Serial.println(cfgData.spkm);
+          result = true;
+        }
+        else if (len == idx) {
           cfgData.spkm = 0x00;
           result = true;
         }
@@ -961,27 +989,22 @@ void handleHayes() {
           cfgData.spkm = (buf[idx] - '0') & 0x03;
           result = true;
         }
-        else if (buf[idx] == '?') {
-          // Get speaker mode
-          Serial.print(F("M: ")); Serial.println(cfgData.spkm);
-          result = true;
-        }
         break;
 
       // ATQ Quiet Mode
       case 'Q':
-        if (len == idx) {
+        if (buf[idx] == '?') {
+          // Get quiet mode
+          Serial.print(F("Q: ")); Serial.println(cfgData.scqt);
+          result = true;
+        }
+        else if (len == idx) {
           cfgData.scqt = 0x00;
           result = true;
         }
         else if (buf[idx] >= '0' and buf[idx] <= '1') {
           // Set console quiet mode off or on
           cfgData.scqt = (buf[idx] - '0') & 0x01;
-          result = true;
-        }
-        else if (buf[idx] == '?') {
-          // Get quiet mode
-          Serial.print(F("Q: ")); Serial.println(cfgData.scqt);
           result = true;
         }
         break;
