@@ -77,6 +77,8 @@ struct cfgEE_t {
       int8_t  kvcc: 8;  // Bandgap correction factor (/1000)
       int8_t  ktmp: 8;  // MCU temperature correction factor
       uint8_t scqt: 1;  // Serial console quiet mode (negate)
+      uint8_t bfst: 5;  // First hour to beep
+      uint8_t blst: 5;  // Last hour to beep
     };
     uint8_t data[8];    // We use 8 bytes in the structure
   };
@@ -87,7 +89,7 @@ const cfgEE_t cfgDefault = {{{
       .font = 0x01, .brgt = 0x01, .mnbr = 0x00, .mxbr = 0x0F,
       .aubr = 0x01, .tmpu = 0x01, .spkm = 0x00, .spkl = 0x00,
       .echo = 0x01, .dst  = 0x00, .kvcc = 0x00, .ktmp = 0x00,
-      .scqt = 0x00,
+      .scqt = 0x00, .bfst = 0x08, .blst = 0x14,
     }
   }
 };
@@ -363,7 +365,15 @@ void showModeHHMM() {
       // Show the time
       showTimeBCD(rtc.R);
       // Beep each hour, on the dot
-      if (newHour and (cfgData.spkm & 0x01)) beep();
+      if (newHour) {
+        // Get the hour in binary
+        uint8_t hh = rtc.R[0] * 0x10 + rtc.R[1];
+        // Check the Speaker mode switch and hours interval
+        if (((cfgData.spkm == 1)
+             and (hh >= cfgData.bfst) and (hh <= cfgData.blst))
+            or (cfgData.spkm == 2))
+          beep();
+      }
     }
   }
 }
