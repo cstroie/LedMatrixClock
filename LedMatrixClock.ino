@@ -27,8 +27,10 @@
 #include "DS3231.h"
 
 // Software name and vesion
-const char DEVNAME[] PROGMEM = "LedMatrix Clock";
-const char VERSION[] PROGMEM = "2.11";
+const char DEVNAME[]  PROGMEM = "LedMatrix Clock";
+const char VERSION[]  PROGMEM = "v2.11";
+const char AUTHOR[]   PROGMEM = "Costin Stroie <costinstroie@eridu.eu.org>";
+const char DATE[]     PROGMEM = __DATE__;
 
 // Pin definitions
 const int CS_PIN    = 10; // ~SS
@@ -87,7 +89,7 @@ struct cfgEE_t {
 // The factory default configuration
 const cfgEE_t cfgDefault = {{{
       .font = 0x01, .brgt = 0x01, .mnbr = 0x00, .mxbr = 0x0F,
-      .aubr = 0x01, .tmpu = 0x01, .spkm = 0x00, .spkl = 0x00,
+      .aubr = 0x01, .tmpu = 0x01, .spkm = 0x01, .spkl = 0x01,
       .echo = 0x01, .dst  = 0x00, .kvcc = 0x00, .ktmp = 0x00,
       .scqt = 0x00, .bfst = 0x08, .blst = 0x14,
     }
@@ -98,6 +100,21 @@ struct cfgEE_t  cfgData;
 // EEPROM address to store the configuration to
 uint16_t        cfgEEAddress = 0x0180;
 
+
+/**
+  Print a character array from program memory
+
+  @param str the character array to print
+  @param eol print the EOL
+*/
+void print_P(const char *str, bool eol = false) {
+  uint8_t val;
+  do {
+    val = pgm_read_byte(str++);
+    if (val) Serial.write(val);
+  } while (val);
+  if (eol) Serial.println();
+}
 
 /**
   CRC8 computing
@@ -797,13 +814,6 @@ void handleHayes() {
         }
         break;
 
-      // ATI Show info
-      case 'I':
-        showBanner();
-        Serial.println(__DATE__);
-        result = true;
-        break;
-
       // ATE Set local echo
       case 'E':
         if (len == 1) {
@@ -819,6 +829,29 @@ void handleHayes() {
           // Get local echo
           Serial.print(F("E: ")); Serial.println(cfgData.echo);
           result = true;
+        }
+        break;
+
+      // ATI Show info
+      case 'I': {
+          uint8_t rqInfo = 0x00;
+          if (len == 1 or buf[1] == '0') {
+            // Display all info
+            rqInfo = 0x03;
+            result = true;
+          }
+          else if (buf[1] >= '1' and buf[1] <= '7') {
+            // Specify the line to display
+            rqInfo = 0x01 << (buf[1] - '1');
+            result = true;
+          }
+          if (result) {
+            if (rqInfo & 0x01) print_P(DEVNAME, true);  rqInfo = rqInfo >> 1;
+            if (rqInfo & 0x01) print_P(VERSION, true);  rqInfo = rqInfo >> 1;
+            if (rqInfo & 0x01) print_P(AUTHOR,  true);  rqInfo = rqInfo >> 1;
+            if (rqInfo & 0x01) print_P(DATE,    true);  rqInfo = rqInfo >> 1;
+            if (rqInfo & 0x01) Serial.println(cfgData.crc8, 16);  rqInfo = rqInfo >> 1;
+          }
         }
         break;
 
@@ -931,11 +964,9 @@ bool checkDST() {
   Print the banner to serial console
 */
 void showBanner() {
-  char buf[40] = "";
-  strcpy_P(buf, DEVNAME);
-  strcat_P(buf, PSTR(" "));
-  strcat_P(buf, VERSION);
-  Serial.println(buf);
+  print_P(DEVNAME);
+  Serial.print(F(" "));
+  print_P(VERSION, true);
 }
 
 /**
@@ -990,24 +1021,20 @@ void setup() {
 
   // Init and configure RTC
   if (! rtc.init()) {
-    Serial.println(F("DS3231 RTC missing"));
+    Serial.print(F("ERROR"));
+    Serial.println(F(" RTC missing"));
   }
 
-  if (rtc.rtcOk and rtc.lostPower()) {
-    Serial.println(F("RTC lost power, lets set the time!"));
-    // The next line sets the RTC to the date & time this sketch was compiled
-    //rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-    // This line sets the RTC with an explicit date & time, for example to set
-    // January 21, 2014 at 3am you would call:
-    // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
-  }
-
+  // Only if RTC is present and working
   if (rtc.rtcOk) {
+    // Check the power
+    if (rtc.lostPower()) {
+      Serial.print(F("ERROR"));
+      Serial.println(F(" RTC power lost"));
+    };
+
     // Check DST adjustments
     checkDST();
-    // Show the temperature
-    showModeTEMP();
-    delay(2000);
   }
 }
 
