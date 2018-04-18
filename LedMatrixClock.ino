@@ -82,6 +82,15 @@ struct cfgEE_t {
   };
   uint8_t crc8;         // CRC8
 };
+// The factory default configuration
+const cfgEE_t cfgDefault = {{{
+      .font = 0x01, .brgt = 0x01, .mnbr = 0x00, .mxbr = 0x0F,
+      .aubr = 0x01, .tmpu = 0x01, .spkm = 0x00, .spkl = 0x00,
+      .echo = 0x01, .dst  = 0x00, .kvcc = 0x00, .ktmp = 0x00,
+      .scqt = 0x00,
+    }
+  }
+};
 // The global configuration structure
 struct cfgEE_t  cfgData;
 // EEPROM address to store the configuration to
@@ -183,19 +192,7 @@ bool cfgReadEE(bool useDefaults = false) {
   Reset the configuration to factory defaults
 */
 bool cfgDefaults() {
-  cfgData.font = 0x01;
-  cfgData.brgt = 0x01;
-  cfgData.mnbr = 0x00;
-  cfgData.mxbr = 0x0F;
-  cfgData.aubr = 0x01;
-  cfgData.tmpu = 0x01;
-  cfgData.spkm = 0x00;
-  cfgData.spkl = 0x00;
-  cfgData.echo = 0x01;
-  cfgData.dst  = 0x00;
-  cfgData.kvcc = 0x00;
-  cfgData.ktmp = 0x00;
-  cfgData.scqt = 0x00;
+  cfgData = cfgDefault;
 };
 
 
