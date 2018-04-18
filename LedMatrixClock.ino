@@ -68,16 +68,17 @@ struct cfgEE_t {
       uint8_t brgt: 4;  // Display brightness (manual)
       uint8_t mnbr: 4;  // Minimal display brightness (auto)
       uint8_t mxbr: 4;  // Minimum display brightness (auto)
-      bool    aubr: 1;  // Manual/Auto display brightness adjustment
-      bool    tmpu: 1;  // Temperature units
+      uint8_t aubr: 1;  // Manual/Auto display brightness adjustment
+      uint8_t tmpu: 1;  // Temperature units
       uint8_t spkm: 2;  // Speaker mode
       uint8_t spkl: 2;  // Speaker volume level
       uint8_t echo: 1;  // Local echo
-      bool    dst:  1;  // DST flag
+      uint8_t dst:  1;  // DST flag
       int8_t  kvcc: 8;  // Bandgap correction factor (/1000)
       int8_t  ktmp: 8;  // MCU temperature correction factor
+      uint8_t scqt: 1;  // Serial console quiet mode (negate)
     };
-    uint8_t data[5];    // We use 4 bytes in the structure
+    uint8_t data[8];    // We use 8 bytes in the structure
   };
   uint8_t crc8;         // CRC8
 };
@@ -194,6 +195,7 @@ bool cfgDefaults() {
   cfgData.dst  = 0x00;
   cfgData.kvcc = 0x00;
   cfgData.ktmp = 0x00;
+  cfgData.scqt = 0x00;
 };
 
 
@@ -327,9 +329,11 @@ void showTimeBCD(uint8_t* HHMM) {
   // Print on framebuffer
   mtx.fbPrint(data, sizeof(data) / sizeof(*data));
   // Print to console
-  Serial.print(F("*O")); Serial.print(MODE_HHMM); Serial.print(F(": "));
-  Serial.print(data[0], 10); Serial.print(data[1], 10); Serial.print(F(":"));
-  Serial.print(data[2], 10); Serial.print(data[3], 10); Serial.println();
+  if (not cfgData.scqt) {
+    Serial.print(F("*O")); Serial.print(MODE_HHMM); Serial.print(F(": "));
+    Serial.print(data[0], 10); Serial.print(data[1], 10); Serial.print(F(":"));
+    Serial.print(data[2], 10); Serial.print(data[3], 10); Serial.println();
+  }
 }
 
 /**
@@ -380,8 +384,10 @@ void showModeSS() {
     // Print on framebuffer
     mtx.fbPrint(data, sizeof(data) / sizeof(*data));
     // Print to console
-    Serial.print(F("*O")); Serial.print(MODE_SS); Serial.print(F(": "));
-    Serial.print(data[3], 10); Serial.print(data[4], 10); Serial.println();
+    if (not cfgData.scqt) {
+      Serial.print(F("*O")); Serial.print(MODE_SS); Serial.print(F(": "));
+      Serial.print(data[3], 10); Serial.print(data[4], 10); Serial.println();
+    }
   }
 }
 
@@ -396,9 +402,11 @@ void showModeDDMM() {
     // Print on framebuffer
     mtx.fbPrint(data, sizeof(data) / sizeof(*data));
     // Print to console
-    Serial.print(F("*O")); Serial.print(MODE_DDMM); Serial.print(F(": "));
-    Serial.print(data[0], 10); Serial.print(data[1], 10); Serial.print(F("."));
-    Serial.print(data[2], 10); Serial.print(data[3], 10); Serial.println();
+    if (not cfgData.scqt) {
+      Serial.print(F("*O")); Serial.print(MODE_DDMM); Serial.print(F(": "));
+      Serial.print(data[0], 10); Serial.print(data[1], 10); Serial.print(F("."));
+      Serial.print(data[2], 10); Serial.print(data[3], 10); Serial.println();
+    }
   }
 }
 
@@ -413,8 +421,10 @@ void showModeYY() {
     // Print on framebuffer
     mtx.fbPrint(data, sizeof(data) / sizeof(*data));
     // Print to console
-    Serial.print(F("*O")); Serial.print(MODE_YY); Serial.print(F(": "));
-    Serial.println(rtc.Y);
+    if (not cfgData.scqt) {
+      Serial.print(F("*O")); Serial.print(MODE_YY); Serial.print(F(": "));
+      Serial.println(rtc.Y);
+    }
   }
 }
 
@@ -439,10 +449,11 @@ void showModeTEMP() {
     mtx.fbPrint(data, sizeof(data) / sizeof(*data));
   }
   // Print to console
-  Serial.print(F("*O")); Serial.print(MODE_TEMP); Serial.print(F(": "));
-  Serial.print(temp); Serial.println(cfgData.tmpu ? "C" : "F");
+  if (not cfgData.scqt) {
+    Serial.print(F("*O")); Serial.print(MODE_TEMP); Serial.print(F(": "));
+    Serial.print(temp); Serial.println(cfgData.tmpu ? "C" : "F");
+  }
 }
-
 /**
   Check and display mode VCC (supply voltage)
 */
@@ -454,8 +465,10 @@ void showModeVCC() {
   // Print on framebuffer
   mtx.fbPrint(data, sizeof(data) / sizeof(*data));
   // Print to console
-  Serial.print(F("*O")); Serial.print(MODE_VCC); Serial.print(F(": "));
-  Serial.print(vcc); Serial.println(F("mV"));
+  if (not cfgData.scqt) {
+    Serial.print(F("*O")); Serial.print(MODE_VCC); Serial.print(F(": "));
+    Serial.print(vcc); Serial.println(F("mV"));
+  }
 }
 
 /**
@@ -470,10 +483,6 @@ void showModeMCU() {
   else
     // Use integer Celsius degrees
     temp /= 100;
-  // Print to console
-  Serial.print(F("*O")); Serial.print(MODE_MCU); Serial.print(F(": "));
-  Serial.print(temp); Serial.println(cfgData.tmpu ? "C" : "F");
-
   // Absolute value
   uint16_t atemp = abs(temp);
   if (atemp >= 100) {
@@ -487,6 +496,11 @@ void showModeMCU() {
     uint8_t data[] = {temp < 0 ? 0x0E : 0xFF, atemp / 10,  atemp % 10, 0x0D, cfgData.tmpu ? 0x0C : 0x0F};
     // Print on framebuffer
     mtx.fbPrint(data, sizeof(data) / sizeof(*data));
+  }
+  // Print to console
+  if (not cfgData.scqt) {
+    Serial.print(F("*O")); Serial.print(MODE_MCU); Serial.print(F(": "));
+    Serial.print(temp); Serial.println(cfgData.tmpu ? "C" : "F");
   }
 }
 
@@ -759,7 +773,8 @@ void handleHayes() {
             Serial.print(F("*U: ")); Serial.print(cfgData.tmpu ? "C" : "F"); Serial.println(F("; "));
             Serial.print(F("E: ")); Serial.print(cfgData.echo); Serial.print(F("; "));
             Serial.print(F("L: ")); Serial.print(cfgData.spkl); Serial.print(F("; "));
-            Serial.print(F("M: ")); Serial.print(cfgData.spkm); Serial.println(F("; "));
+            Serial.print(F("M: ")); Serial.print(cfgData.spkm); Serial.print(F("; "));
+            Serial.print(F("Q: ")); Serial.print(cfgData.scqt); Serial.println(F("; "));
             result = true;
             break;
 
@@ -832,6 +847,24 @@ void handleHayes() {
         else if (buf[1] == '?') {
           // Get speaker mode
           Serial.print(F("M: ")); Serial.println(cfgData.spkm);
+          result = true;
+        }
+        break;
+
+      // ATQ Quiet Mode
+      case 'Q':
+        if (len == 1) {
+          cfgData.scqt = 0x00;
+          result = true;
+        }
+        else if (buf[1] >= '0' and buf[1] <= '1') {
+          // Set console quiet mode off or on
+          cfgData.scqt = (buf[1] - '0') & 0x01;
+          result = true;
+        }
+        else if (buf[1] == '?') {
+          // Get quiet mode
+          Serial.print(F("Q: ")); Serial.println(cfgData.scqt);
           result = true;
         }
         break;
