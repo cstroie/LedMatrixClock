@@ -28,7 +28,7 @@
 
 // Software name and vesion
 const char DEVNAME[]  PROGMEM = "LedMatrix Clock";
-const char VERSION[]  PROGMEM = "v2.11";
+const char VERSION[]  PROGMEM = "v2.12";
 const char AUTHOR[]   PROGMEM = "Costin Stroie <costinstroie@eridu.eu.org>";
 const char DATE[]     PROGMEM = __DATE__;
 
@@ -77,7 +77,7 @@ struct cfgEE_t {
       uint8_t echo: 1;  // Local echo
       uint8_t dst:  1;  // DST flag
       int8_t  kvcc: 8;  // Bandgap correction factor (/1000)
-      int8_t  ktmp: 8;  // MCU temperature correction factor
+      int8_t  ktmp: 8;  // MCU temperature correction factor (/100)
       uint8_t scqt: 1;  // Serial console quiet mode (negate)
       uint8_t bfst: 5;  // First hour to beep
       uint8_t blst: 5;  // Last hour to beep
@@ -405,7 +405,7 @@ void showTimeBCD(uint8_t* HHMM) {
   if (not cfgData.scqt) {
     Serial.print(F("*O")); Serial.print(MODE_HHMM); Serial.print(F(": "));
     Serial.print(data[0], 10); Serial.print(data[1], 10); Serial.print(F(":"));
-    Serial.print(data[2], 10); Serial.print(data[3], 10); Serial.println();
+    Serial.print(data[3], 10); Serial.print(data[4], 10); Serial.println();
   }
 }
 
@@ -486,7 +486,7 @@ void showModeDDMM() {
     if (not cfgData.scqt) {
       Serial.print(F("*O")); Serial.print(MODE_DDMM); Serial.print(F(": "));
       Serial.print(data[0], 10); Serial.print(data[1], 10); Serial.print(F("."));
-      Serial.print(data[2], 10); Serial.print(data[3], 10); Serial.println();
+      Serial.print(data[3], 10); Serial.print(data[4], 10); Serial.println();
     }
   }
 }
