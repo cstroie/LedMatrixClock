@@ -28,7 +28,7 @@
 
 // Software name and vesion
 const char DEVNAME[] PROGMEM = "LedMatrix Clock";
-const char VERSION[] PROGMEM = "2.10";
+const char VERSION[] PROGMEM = "2.11";
 
 // Pin definitions
 const int CS_PIN    = 10; // ~SS
@@ -324,9 +324,12 @@ void showTimeBCD(uint8_t* HHMM) {
   // Create a new array, containing the hours (2 digits), the colon symbol and
   // the minutes (2 digits)
   uint8_t data[] = {HHMM[0], HHMM[1], 0x0A, HHMM[2], HHMM[3]};
-
   // Print on framebuffer
   mtx.fbPrint(data, sizeof(data) / sizeof(*data));
+  // Print to console
+  Serial.print(F("*O")); Serial.print(MODE_HHMM); Serial.print(F(": "));
+  Serial.print(data[0], 10); Serial.print(data[1], 10); Serial.print(F(":"));
+  Serial.print(data[2], 10); Serial.print(data[3], 10); Serial.println();
 }
 
 /**
@@ -374,9 +377,11 @@ void showModeSS() {
     uint8_t bcdSS = rtc.readSecondsBCD();
     // Convert to unpacked BCD, colon and 2 digits
     uint8_t data[] = {0xFF, 0xFF, 0x0A, bcdSS / 0x10, bcdSS % 0x10};
-
     // Print on framebuffer
     mtx.fbPrint(data, sizeof(data) / sizeof(*data));
+    // Print to console
+    Serial.print(F("*O")); Serial.print(MODE_SS); Serial.print(F(": "));
+    Serial.print(data[3], 10); Serial.print(data[4], 10); Serial.println();
   }
 }
 
@@ -388,9 +393,12 @@ void showModeDDMM() {
   if (rtc.rtcOk and rtc.readTime(true)) {
     // Convert to unpacked BCD, day (2 digits), dot, month (2 digits)
     uint8_t data[] = {rtc.d / 10, rtc.d % 10, 0x0B, rtc.m / 10, rtc.m % 10};
-
     // Print on framebuffer
     mtx.fbPrint(data, sizeof(data) / sizeof(*data));
+    // Print to console
+    Serial.print(F("*O")); Serial.print(MODE_DDMM); Serial.print(F(": "));
+    Serial.print(data[0], 10); Serial.print(data[1], 10); Serial.print(F("."));
+    Serial.print(data[2], 10); Serial.print(data[3], 10); Serial.println();
   }
 }
 
@@ -402,9 +410,11 @@ void showModeYY() {
   if (rtc.rtcOk and rtc.readTime(true)) {
     // Convert to unpacked BCD, 4 digits
     uint8_t data[] = {rtc.Y / 1000, (rtc.Y % 1000) / 100, (rtc.Y % 100) / 10, rtc.Y % 10};
-
     // Print on framebuffer
     mtx.fbPrint(data, sizeof(data) / sizeof(*data));
+    // Print to console
+    Serial.print(F("*O")); Serial.print(MODE_YY); Serial.print(F(": "));
+    Serial.println(rtc.Y);
   }
 }
 
@@ -414,9 +424,6 @@ void showModeYY() {
 void showModeTEMP() {
   // Get the temperature
   int8_t temp = rtc.readTemperature(cfgData.tmpu);
-  // Print to console
-  Serial.print(temp); Serial.println(cfgData.tmpu ? "C" : "F");
-
   // Absolute value
   uint8_t atemp = abs(temp);
   if (atemp >= 100) {
@@ -431,6 +438,9 @@ void showModeTEMP() {
     // Print on framebuffer
     mtx.fbPrint(data, sizeof(data) / sizeof(*data));
   }
+  // Print to console
+  Serial.print(F("*O")); Serial.print(MODE_TEMP); Serial.print(F(": "));
+  Serial.print(temp); Serial.println(cfgData.tmpu ? "C" : "F");
 }
 
 /**
@@ -439,14 +449,13 @@ void showModeTEMP() {
 void showModeVCC() {
   // Get the Vcc, mV
   int16_t vcc = readVcc(cfgData.kvcc);
-  // Print to console
-  Serial.print((float)vcc / 1000.0, 3); Serial.println("V");
-
   // Create an array with the value in Volts, with decimal dot
   uint8_t data[] = {vcc / 1000, 0x0B, (vcc % 1000) / 100, (vcc % 100) / 10, vcc % 10};
-
   // Print on framebuffer
   mtx.fbPrint(data, sizeof(data) / sizeof(*data));
+  // Print to console
+  Serial.print(F("*O")); Serial.print(MODE_VCC); Serial.print(F(": "));
+  Serial.print(vcc); Serial.println(F("mV"));
 }
 
 /**
@@ -462,6 +471,7 @@ void showModeMCU() {
     // Use integer Celsius degrees
     temp /= 100;
   // Print to console
+  Serial.print(F("*O")); Serial.print(MODE_MCU); Serial.print(F(": "));
   Serial.print(temp); Serial.println(cfgData.tmpu ? "C" : "F");
 
   // Absolute value
@@ -994,10 +1004,10 @@ void loop() {
       case MODE_TEMP: // RTC temperature
         showModeTEMP();
         break;
-      case MODE_VCC:  // Year
+      case MODE_VCC:  // Power supply voltage
         showModeVCC();
         break;
-      case MODE_MCU:  // Year
+      case MODE_MCU:  // MCU temperature
         showModeMCU();
         break;
       default:        // Hours and minutes
