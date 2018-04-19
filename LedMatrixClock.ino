@@ -102,7 +102,6 @@ uint16_t        cfgEEAddress = 0x0180;
 
 // Several Hayes related globals
 const int8_t  HAYES_NUM_ERROR = -128;
-int8_t        HAYES_NUM       = 0;
 
 /**
   Print a character array from program memory
@@ -186,7 +185,7 @@ int16_t getInteger(char* buf, int8_t idx, uint8_t len = 32) {
   @param hgh maximal valid value
   @param def default value
   @param len maximum to parse, 0 for no limit
-  @return true if valid, false if not
+  @return the integer value or default
 */
 int16_t getValidInteger(char* buf, int8_t idx, int16_t low, int16_t hgh, int16_t def = 0, uint8_t len = 32) {
   // Get the integer value
@@ -216,23 +215,25 @@ int8_t getDigit(char* buf, int8_t idx) {
 }
 
 /**
-  Parse the buffer and return true if the digit fits in the specified interval.
-  The value is saved in HAYES_NUM global variable.
+  Parse the buffer and return the digit value if it fits in the specified interval
+  or the default value if not.
 
   @param buf the char buffer to parse
   @param idx index to start with
   @param low minimal valid value
   @param hgh maximal valid value
-  @return true if valid, false if not
+  @param def default value
+  @return the digit value or default
 */
-bool isValidDigit(char* buf, int8_t idx, int8_t low, int8_t hgh) {
-  HAYES_NUM = getDigit(buf, idx);
-  if ((HAYES_NUM < low) or
-      (HAYES_NUM > hgh) or
-      (HAYES_NUM == HAYES_NUM_ERROR))
-    return false;
-  else
-    return true;
+int8_t getValidDigit(char* buf, int8_t idx, int8_t low, int8_t hgh, int8_t def = HAYES_NUM_ERROR) {
+  // Get the digit value
+  int8_t res = getDigit(buf, idx);;
+  // Check if valid
+  if ((res != HAYES_NUM_ERROR) and
+      ((res < low) or (res > hgh)))
+    res = def;
+  // Return the result
+  return res;
 }
 
 /**
@@ -706,11 +707,15 @@ void handleHayes() {
               mtx.intensity(brightness());
               result = true;
             }
-            else if (isValidDigit(buf, idx, 0, 1)) {
-              // Set auto brightness
-              cfgData.aubr = HAYES_NUM;
-              mtx.intensity(brightness());
-              result = true;
+            else {
+              // Get the digit value
+              value = getValidDigit(buf, idx, 0, 1, HAYES_NUM_ERROR);
+              if (value != HAYES_NUM_ERROR) {
+                // Set auto brightness
+                cfgData.aubr = value;
+                mtx.intensity(brightness());
+                result = true;
+              }
             }
             break;
 
@@ -746,11 +751,15 @@ void handleHayes() {
               mtxDisplayNow = true;
               result = true;
             }
-            else if (isValidDigit(buf, idx, 0, 1)) {
-              // Set DST
-              cfgData.dst = HAYES_NUM;
-              mtxDisplayNow = true;
-              result = true;
+            else {
+              // Get the digit value
+              value = getValidDigit(buf, idx, 0, 1, HAYES_NUM_ERROR);
+              if (value != HAYES_NUM_ERROR) {
+                // Set DST
+                cfgData.dst = value;
+                mtxDisplayNow = true;
+                result = true;
+              }
             }
             break;
 
@@ -908,11 +917,6 @@ void handleHayes() {
               Serial.print(F("*U: ")); Serial.println(cfgData.tmpu ? "C" : "F");
               result = true;
             }
-            else if (isValidDigit(buf, idx, 0, 1)) {
-              // Set temperature units
-              cfgData.tmpu = HAYES_NUM;
-              result = true;
-            }
             else if (buf[idx] == 'C') {
               // Set temperature units
               cfgData.tmpu = 1;
@@ -922,6 +926,15 @@ void handleHayes() {
               // Set temperature units
               cfgData.tmpu = 0;
               result = true;
+            }
+            else {
+              // Get the digit value
+              value = getValidDigit(buf, idx, 0, 1, HAYES_NUM_ERROR);
+              if (value != HAYES_NUM_ERROR) {
+                // Set temperature units
+                cfgData.tmpu = value;
+                result = true;
+              }
             }
             break;
 
@@ -994,10 +1007,14 @@ void handleHayes() {
           cfgData.echo = 0x00;
           result = true;
         }
-        else if (isValidDigit(buf, idx, 0, 1)) {
-          // Set echo on or off
-          cfgData.echo = HAYES_NUM;
-          result = true;
+        else {
+          // Get the digit value
+          value = getValidDigit(buf, idx, 0, 1, HAYES_NUM_ERROR);
+          if (value != HAYES_NUM_ERROR) {
+            // Set echo on or off
+            cfgData.echo = value;
+            result = true;
+          }
         }
         break;
 
@@ -1009,10 +1026,14 @@ void handleHayes() {
             rqInfo = 0x03;
             result = true;
           }
-          else if (isValidDigit(buf, idx, 1, 7)) {
-            // Specify the line to display
-            rqInfo = 0x01 << (HAYES_NUM - 1);
-            result = true;
+          else {
+            // Get the digit value
+            value = getValidDigit(buf, idx, 1, 7, HAYES_NUM_ERROR);
+            if (value != HAYES_NUM_ERROR) {
+              // Specify the line to display
+              rqInfo = 0x01 << (value - 1);
+              result = true;
+            }
           }
           if (result) {
             if (rqInfo & 0x01) print_P(DEVNAME, true);  rqInfo = rqInfo >> 1;
@@ -1035,10 +1056,14 @@ void handleHayes() {
           cfgData.spkl = 0x00;
           result = true;
         }
-        else if (isValidDigit(buf, idx, 0, 3)) {
-          // Set speaker volume
-          cfgData.spkl = HAYES_NUM;
-          result = true;
+        else {
+          // Get the digit value
+          value = getValidDigit(buf, idx, 0, 3, HAYES_NUM_ERROR);
+          if (value != HAYES_NUM_ERROR) {
+            // Set speaker volume
+            cfgData.spkl = value;
+            result = true;
+          }
         }
         break;
 
@@ -1053,10 +1078,14 @@ void handleHayes() {
           cfgData.spkm = 0x00;
           result = true;
         }
-        else if (isValidDigit(buf, idx, 0, 3)) {
-          // Set speaker on or off mode
-          cfgData.spkm = HAYES_NUM;
-          result = true;
+        else {
+          // Get the digit value
+          value = getValidDigit(buf, idx, 0, 3, HAYES_NUM_ERROR);
+          if (value != HAYES_NUM_ERROR) {
+            // Set speaker on or off mode
+            cfgData.spkm = value;
+            result = true;
+          }
         }
         break;
 
@@ -1071,10 +1100,14 @@ void handleHayes() {
           cfgData.scqt = 0x00;
           result = true;
         }
-        else if (isValidDigit(buf, idx, 0, 1)) {
-          // Set console quiet mode off or on
-          cfgData.scqt = HAYES_NUM;
-          result = true;
+        else {
+          // Get the digit value
+          value = getValidDigit(buf, idx, 0, 1, HAYES_NUM_ERROR);
+          if (value != HAYES_NUM_ERROR) {
+            // Set console quiet mode off or on
+            cfgData.scqt = value;
+            result = true;
+          }
         }
         break;
 
