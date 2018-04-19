@@ -28,7 +28,7 @@
 
 // Software name and vesion
 const char DEVNAME[]  PROGMEM = "LedMatrix Clock";
-const char VERSION[]  PROGMEM = "v2.12";
+const char VERSION[]  PROGMEM = "v2.13";
 const char AUTHOR[]   PROGMEM = "Costin Stroie <costinstroie@eridu.eu.org>";
 const char DATE[]     PROGMEM = __DATE__;
 
@@ -100,6 +100,9 @@ struct cfgEE_t  cfgData;
 // EEPROM address to store the configuration to
 uint16_t        cfgEEAddress = 0x0180;
 
+// Several Hayes related globals
+const int8_t  HAYES_NUM_ERROR = -128;
+int8_t        HAYES_NUM       = 0;
 
 /**
   Print a character array from program memory
@@ -122,7 +125,7 @@ void print_P(const char *str, bool eol = false) {
   @param buf the char buffer to parse
   @param idx index to start with
   @param len maximum to parse, 0 for no limit
-  @rertun the integer found or zero
+  @return the integer found or zero
 */
 int16_t getInteger(char* buf, int8_t idx, uint8_t len = 32) {
   int16_t result = 0;     // The result
@@ -171,6 +174,65 @@ int16_t getInteger(char* buf, int8_t idx, uint8_t len = 32) {
   }
   // Return the result
   return result;
+}
+
+/**
+  Parse the buffer and return the integer value if it fits in the specified interval
+  or the default value if not.
+
+  @param buf the char buffer to parse
+  @param idx index to start with
+  @param low minimal valid value
+  @param hgh maximal valid value
+  @param def default value
+  @param len maximum to parse, 0 for no limit
+  @return true if valid, false if not
+*/
+int16_t getValidInteger(char* buf, int8_t idx, int16_t low, int16_t hgh, int16_t def = 0, uint8_t len = 32) {
+  // Get the integer value
+  int16_t res = getInteger(buf, idx, len);
+  // Check if valid
+  if ((res < low) or (res > hgh))
+    res = def;
+  // Return the result
+  return res;
+}
+
+/**
+  Parse the buffer and return one digit integer
+
+  @param buf the char buffer to parse
+  @param idx index to start with
+  @return the integer found or HAYES_NUM_ERROR
+*/
+int8_t getDigit(char* buf, int8_t idx) {
+  // The result is signed integer
+  int8_t res = HAYES_NUM_ERROR;
+  // Make sure the pointed char is a digit and get the numeric value
+  if (isdigit(buf[idx]))
+    res = buf[idx] - '0';
+  // Return the result
+  return res;
+}
+
+/**
+  Parse the buffer and return true if the digit fits in the specified interval.
+  The value is saved in HAYES_NUM global variable.
+
+  @param buf the char buffer to parse
+  @param idx index to start with
+  @param low minimal valid value
+  @param hgh maximal valid value
+  @return true if valid, false if not
+*/
+bool isValidDigit(char* buf, int8_t idx, int8_t low, int8_t hgh) {
+  HAYES_NUM = getDigit(buf, idx);
+  if ((HAYES_NUM < low) or
+      (HAYES_NUM > hgh) or
+      (HAYES_NUM == HAYES_NUM_ERROR))
+    return false;
+  else
+    return true;
 }
 
 /**
@@ -602,15 +664,22 @@ void mtxSetMode(uint8_t mode) {
   AT-Hayes style command processing
 */
 void handleHayes() {
+  // String buffer
   char buf[35] = "";
+  // Line buffer length
   int8_t len = -1;
+  // Buffer index
+  uint8_t idx = 0;
+  // Numeric value
+  int8_t value = 0;
+  // Command result
   bool result = false;
+  // Start by finding the 'AT' sequence
+  // TODO allow for lowercase 'at'
   if (Serial.find("AT")) {
     // Read until newline, no more than 32 chararcters
     len = Serial.readBytesUntil('\r', buf, 32);
     buf[len] = '\0';
-    // Buffer index
-    uint8_t idx = 0;
     // Uppercase
     while (buf[idx++])
       buf[idx] = toupper(buf[idx]);
@@ -637,9 +706,9 @@ void handleHayes() {
               mtx.intensity(brightness());
               result = true;
             }
-            else if (isdigit(buf[idx])) {
+            else if (isValidDigit(buf, idx, 0, 1)) {
               // Set auto brightness
-              cfgData.aubr = (buf[idx] - '0') & 0x01;
+              cfgData.aubr = HAYES_NUM;
               mtx.intensity(brightness());
               result = true;
             }
@@ -654,8 +723,8 @@ void handleHayes() {
             }
             else {
               // Get the integer value
-              int16_t value = getInteger(buf, idx);
-              if (value >= 0x00 and value <= 0x0F) {
+              value = getValidInteger(buf, idx, 0, 15, HAYES_NUM_ERROR);
+              if (value != HAYES_NUM_ERROR) {
                 cfgData.aubr = false;
                 cfgData.brgt = value;
                 // Set the brightness
@@ -677,9 +746,9 @@ void handleHayes() {
               mtxDisplayNow = true;
               result = true;
             }
-            else if (buf[idx] >= '0' and buf[idx] <= '1') {
+            else if (isValidDigit(buf, idx, 0, 1)) {
               // Set DST
-              cfgData.dst = (buf[idx] - '0') & 0x01;
+              cfgData.dst = HAYES_NUM;
               mtxDisplayNow = true;
               result = true;
             }
@@ -694,8 +763,8 @@ void handleHayes() {
             }
             else {
               // Get the integer value
-              int16_t value = getInteger(buf, idx);
-              if (value >= 0x00 and value < fontCount) {
+              value = getValidInteger(buf, idx, 0, fontCount - 1, HAYES_NUM_ERROR);
+              if (value != HAYES_NUM_ERROR) {
                 cfgData.font = value;
                 // Set the font
                 mtx.loadFont(cfgData.font);
@@ -718,8 +787,8 @@ void handleHayes() {
             }
             else {
               // Get the integer value
-              int16_t value = getInteger(buf, idx);
-              if (value >= 0x00 and value < 0x0F) {
+              value = getValidInteger(buf, idx, 0, 15, HAYES_NUM_ERROR);
+              if (value != HAYES_NUM_ERROR) {
                 // Set the maximum brightness
                 cfgData.mxbr = value;
                 mtx.intensity(brightness());
@@ -742,8 +811,8 @@ void handleHayes() {
             }
             else {
               // Get the integer value
-              int16_t value = getInteger(buf, idx);
-              if (value >= 0x00 and value < 0x0F) {
+              value = getValidInteger(buf, idx, 0, 15, HAYES_NUM_ERROR);
+              if (value != HAYES_NUM_ERROR) {
                 // Set the minimum brightness
                 cfgData.mnbr = value;
                 mtx.intensity(brightness());
@@ -760,8 +829,8 @@ void handleHayes() {
             }
             else {
               // Get the integer value
-              int16_t value = getInteger(buf, idx);
-              if (value > -127 and value < 127) {
+              value = getValidInteger(buf, idx, -127, 127, HAYES_NUM_ERROR);
+              if (value != HAYES_NUM_ERROR) {
                 // Set the temperature correction factor
                 cfgData.ktmp = value;
                 result = true;
@@ -782,8 +851,8 @@ void handleHayes() {
             }
             else {
               // Get the integer value
-              int16_t value = getInteger(buf, idx);
-              if (value >= 0x00 and value < 0x0F) {
+              value = getValidInteger(buf, idx, 0, MODE_ALL - 1, HAYES_NUM_ERROR);
+              if (value != HAYES_NUM_ERROR) {
                 // Set the mode
                 mtxSetMode(value);
                 result = true;
@@ -809,12 +878,12 @@ void handleHayes() {
             else if (buf[idx] == '=') {
               // Set time and date
               uint16_t  year    = getInteger(buf, idx);
-              uint8_t   month   = getInteger(buf, -1);
-              uint8_t   day     = getInteger(buf, -1);
-              uint8_t   hour    = getInteger(buf, -1);
-              uint8_t   minute  = getInteger(buf, -1);
-              uint8_t   second  = getInteger(buf, -1);
-              if (year >= 1900  and year<2100     and
+              uint8_t   month   = getValidInteger(buf, -1, 1, 12, 0);
+              uint8_t   day     = getValidInteger(buf, -1, 1, 31, 0);
+              uint8_t   hour    = getValidInteger(buf, -1, 0, 24, 0);
+              uint8_t   minute  = getValidInteger(buf, -1, 0, 60, 0);
+              uint8_t   second  = getValidInteger(buf, -1, 0, 60, 0);
+              if (year >= 1900  and year < 2100   and
                   month >= 1    and month <= 12   and
                   day >= 1      and day <= 31     and
                   hour >= 0     and hour <= 23    and
@@ -839,19 +908,19 @@ void handleHayes() {
               Serial.print(F("*U: ")); Serial.println(cfgData.tmpu ? "C" : "F");
               result = true;
             }
-            else if (buf[idx] >= '0' and buf[idx] <= '1') {
+            else if (isValidDigit(buf, idx, 0, 1)) {
               // Set temperature units
-              cfgData.tmpu = buf[idx] == '1' ? true : false;
+              cfgData.tmpu = HAYES_NUM;
               result = true;
             }
             else if (buf[idx] == 'C') {
               // Set temperature units
-              cfgData.tmpu = true;
+              cfgData.tmpu = 1;
               result = true;
             }
             else if (buf[idx] == 'F') {
               // Set temperature units
-              cfgData.tmpu = false;
+              cfgData.tmpu = 0;
               result = true;
             }
             break;
@@ -864,8 +933,8 @@ void handleHayes() {
             }
             else {
               // Get the integer value
-              int16_t value = getInteger(buf, idx);
-              if (value > -127 and value < 127) {
+              value = getValidInteger(buf, idx, -127, 127, HAYES_NUM_ERROR);
+              if (value != HAYES_NUM_ERROR) {
                 // Set the voltage correction factor
                 cfgData.kvcc = value;
                 result = true;
@@ -925,9 +994,9 @@ void handleHayes() {
           cfgData.echo = 0x00;
           result = true;
         }
-        else if (buf[idx] >= '0' and buf[idx] <= '1') {
+        else if (isValidDigit(buf, idx, 0, 1)) {
           // Set echo on or off
-          cfgData.echo = (buf[idx] - '0') & 0x01;
+          cfgData.echo = HAYES_NUM;
           result = true;
         }
         break;
@@ -940,9 +1009,9 @@ void handleHayes() {
             rqInfo = 0x03;
             result = true;
           }
-          else if (buf[idx] >= '1' and buf[idx] <= '7') {
+          else if (isValidDigit(buf, idx, 1, 7)) {
             // Specify the line to display
-            rqInfo = 0x01 << (buf[idx] - '1');
+            rqInfo = 0x01 << (HAYES_NUM - 1);
             result = true;
           }
           if (result) {
@@ -966,9 +1035,9 @@ void handleHayes() {
           cfgData.spkl = 0x00;
           result = true;
         }
-        else if (buf[idx] >= '0' and buf[idx] <= '3') {
+        else if (isValidDigit(buf, idx, 0, 3)) {
           // Set speaker volume
-          cfgData.spkl = (buf[idx] - '0') & 0x03;
+          cfgData.spkl = HAYES_NUM;
           result = true;
         }
         break;
@@ -984,9 +1053,9 @@ void handleHayes() {
           cfgData.spkm = 0x00;
           result = true;
         }
-        else if (buf[idx] >= '0' and buf[idx] <= '3') {
+        else if (isValidDigit(buf, idx, 0, 3)) {
           // Set speaker on or off mode
-          cfgData.spkm = (buf[idx] - '0') & 0x03;
+          cfgData.spkm = HAYES_NUM;
           result = true;
         }
         break;
@@ -1002,9 +1071,9 @@ void handleHayes() {
           cfgData.scqt = 0x00;
           result = true;
         }
-        else if (buf[idx] >= '0' and buf[idx] <= '1') {
+        else if (isValidDigit(buf, idx, 0, 1)) {
           // Set console quiet mode off or on
-          cfgData.scqt = (buf[idx] - '0') & 0x01;
+          cfgData.scqt = HAYES_NUM;
           result = true;
         }
         break;
