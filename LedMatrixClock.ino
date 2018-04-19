@@ -763,6 +763,24 @@ void handleHayes() {
             }
             break;
 
+          // Latest hour to beep
+          case 'E':
+            if (buf[idx] == '?') {
+              // Get latest hour
+              Serial.print(F("*E: ")); Serial.println(cfgData.blst);
+              result = true;
+            }
+            else {
+              // Get the integer value
+              value = getValidInteger(buf, idx, 0, 23, HAYES_NUM_ERROR);
+              if (value != HAYES_NUM_ERROR) {
+                // Set the minimum brightness
+                cfgData.blst = value;
+                result = true;
+              }
+            }
+            break;
+
           // Font
           case 'F':
             if (buf[idx] == '?') {
@@ -864,6 +882,24 @@ void handleHayes() {
               if (value != HAYES_NUM_ERROR) {
                 // Set the mode
                 mtxSetMode(value);
+                result = true;
+              }
+            }
+            break;
+
+          // First hour to beep
+          case 'S':
+            if (buf[idx] == '?') {
+              // Get first hour
+              Serial.print(F("*S: ")); Serial.println(cfgData.bfst);
+              result = true;
+            }
+            else {
+              // Get the integer value
+              value = getValidInteger(buf, idx, 0, 23, HAYES_NUM_ERROR);
+              if (value != HAYES_NUM_ERROR) {
+                // Set the minimum brightness
+                cfgData.bfst = value;
                 result = true;
               }
             }
@@ -975,6 +1011,8 @@ void handleHayes() {
             Serial.print(F("*D: "));  Serial.print(cfgData.dst);  Serial.print(F("; "));
             Serial.print(F("*O: "));  Serial.print(mtxMode);      Serial.print(F("; "));
             Serial.print(F("*U: "));  Serial.print(cfgData.tmpu ? "C" : "F"); Serial.println(F("; "));
+            Serial.print(F("*S: "));  Serial.print(cfgData.bfst); Serial.print(F("; "));
+            Serial.print(F("*E: "));  Serial.print(cfgData.blst); Serial.print(F("; "));
             Serial.print(F("*M: "));  Serial.print(cfgData.ktmp); Serial.print(F("; "));
             Serial.print(F("*V: "));  Serial.print(cfgData.kvcc); Serial.println(F("; "));
             Serial.print(F("E: "));   Serial.print(cfgData.echo); Serial.print(F("; "));
