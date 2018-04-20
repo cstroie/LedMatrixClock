@@ -35,7 +35,7 @@ const char DATE[]     PROGMEM = __DATE__;
 
 // Pin definitions
 const int CS_PIN    = 10; // ~SS
-const int BEEP_PIN  = 2;
+const int BEEP_PIN  = 5;
 const int BTN1_PIN  = 3;
 const int BTN2_PIN  = 4;
 const int LIGHT_PIN = A0;
@@ -423,7 +423,7 @@ uint8_t brightness() {
   static uint16_t lstLight = analogRead(LIGHT_PIN);
   // Use another static variable, one-time initialized with currently
   // computed brightness value
-  static uint8_t lstBrght = map(lstLight, 0, 1023, cfgData.mnbr, cfgData.mxbr);
+  static uint8_t lstBrght = map(lstLight, 0, 1023, cfgData.mxbr, cfgData.mnbr);
   // Check for auto or manual adjustments
   if (cfgData.aubr) {
     // Automatic, read the LDR connected to LIGHT_PIN
