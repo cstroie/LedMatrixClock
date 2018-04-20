@@ -29,7 +29,7 @@
 
 // Software name and vesion
 const char DEVNAME[]  PROGMEM = "LedMatrix Clock";
-const char VERSION[]  PROGMEM = "v2.13";
+const char VERSION[]  PROGMEM = "v2.14";
 const char AUTHOR[]   PROGMEM = "Costin Stroie <costinstroie@eridu.eu.org>";
 const char DATE[]     PROGMEM = __DATE__;
 
@@ -654,6 +654,29 @@ void showModeMCU() {
 }
 
 /**
+  Display Version
+*/
+void showModeVers() {
+  // Local buffer
+  uint8_t data[16] = "";
+  // Get the data from PROGMEM
+  strncpy_P(data, VERSION, 16);
+  // Convert the characters
+  for (uint8_t i = 0; i < 16; i++) {
+    if (data[i] == 0)
+      break;
+    else if (data[i] == '.')
+      data[i] = 0x0B;
+    else if (isdigit(data[i]))
+      data[i] -= '0';
+    else
+      data[i] = 0xFF;
+  }
+  // Print on framebuffer, right-aligned
+  mtx.fbPrint(data, sizeof(data) / sizeof(*data), mtx.RIGHT);
+}
+
+/**
   Set the display mode
 
   @param mode the chosen mode
@@ -1275,6 +1298,9 @@ void setup() {
   // Load the font
   mtx.loadFont(cfgData.font);
 
+  // Show version
+  showModeVers();
+
   // Init and configure RTC
   if (! rtc.init()) {
     Serial.print(F("ERROR"));
@@ -1292,6 +1318,9 @@ void setup() {
     // Check DST adjustments
     checkDST();
   }
+
+  // Wait a second while displaying the verion
+  delay(1000);
 }
 
 /**
