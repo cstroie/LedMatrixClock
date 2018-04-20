@@ -203,22 +203,17 @@ void DotMatrix::fbDisplay() {
 
   @param pos position (rightmost)
   @param digit the character/digit to print
-  @param xorMode print with XOR
+  @param alogn print alignment
 */
-void DotMatrix::fbPrint(uint8_t pos, uint8_t digit, bool xorMode) {
+void DotMatrix::fbPrint(uint8_t pos, uint8_t digit) {
   // Print only if the character is valid
   if (digit < fontChars)
     // Process each line of the character
     for (uint8_t l = 0; l < chrLimits[digit].width; l++)
       // Print only if inside framebuffer
       if (pos + l < maxFB)
-        // Print using OR
-        if (xorMode)
-          // Print using XOR
-          fbData[pos + l] ^= FONT[digit][l + chrLimits[digit].right];
-        else
-          // Print using OR
-          fbData[pos + l] |= FONT[digit][l + chrLimits[digit].right] ;
+        // Print
+        fbData[pos + l] |= FONT[digit][l + chrLimits[digit].right] ;
 }
 
 /**
@@ -227,14 +222,14 @@ void DotMatrix::fbPrint(uint8_t pos, uint8_t digit, bool xorMode) {
   @param poss positions array
   @param digit the characters array to print
   @param len number of characters
-  @param xorMode print with XOR
+  @param alogn print alignment
 */
-void DotMatrix::fbPrint(uint8_t* poss, uint8_t* chars, uint8_t len, bool xorMode) {
+void DotMatrix::fbPrint(uint8_t* poss, uint8_t* chars, uint8_t len) {
   // Clear the framebuffer
   fbClear();
   // Print each character at specified position on framebuffer
   for (uint8_t d = 0; d < len; d++)
-    fbPrint(poss[d], chars[d], xorMode);
+    fbPrint(poss[d], chars[d]);
   // Display the framebuffer
   fbDisplay();
 }
@@ -244,9 +239,9 @@ void DotMatrix::fbPrint(uint8_t* poss, uint8_t* chars, uint8_t len, bool xorMode
 
   @param digit the characters array to print
   @param len number of characters
-  @param xorMode print with XOR
+  @param alogn print alignment
 */
-void DotMatrix::fbPrint(uint8_t* chars, uint8_t len, bool xorMode) {
+void DotMatrix::fbPrint(uint8_t* chars, uint8_t len, uint8_t align) {
   uint8_t poss[maxFB] = {0};
   uint8_t pos = 0;
 
@@ -259,17 +254,24 @@ void DotMatrix::fbPrint(uint8_t* chars, uint8_t len, bool xorMode) {
     pos += chrLimits[chr].width + 1;
   }
 
-  // Check if we print inside framebuffer
-  if (pos < maxFB) {
+  // Alignment
+  if (align == CENTER and pos < maxFB) {
     // Get the offset to center the text
     uint8_t offset = (maxFB - (pos - 1)) / 2;
     // Add the offset to positions
     for (uint8_t d = 0; d < len; d++)
       poss[d] += offset;
   }
+  else if (align == LEFT and pos < maxFB) {
+    // Get the offset to left-align the text
+    uint8_t offset = maxFB - (pos - 1);
+    // Add the offset to positions
+    for (uint8_t d = 0; d < len; d++)
+      poss[d] += offset;
+  }
 
   // Print each character at computed position on framebuffer
-  fbPrint(poss, chars, len, xorMode);
+  fbPrint(poss, chars, len);
 }
 
 /**

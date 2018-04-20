@@ -366,14 +366,16 @@ class DotMatrix {
     void sendAllSPI(uint8_t reg, uint8_t data);
     void sendAllSPI(uint8_t reg, uint8_t* data, uint8_t size);
 
+    const static uint8_t LEFT   = 0;
+    const static uint8_t CENTER = 1;
+    const static uint8_t RIGHT  = 2;
+
     void    loadFont(uint8_t font);
     void    fbClear();
     void    fbDisplay();
-    void    fbPrint(uint8_t pos, uint8_t digit, bool xorMode = false);
-    void    fbPrint(uint8_t* poss, uint8_t* chars, uint8_t len, bool xorMode = false);
-    void    fbPrint(uint8_t* chars, uint8_t len, bool xorMode = false);
-
-
+    void    fbPrint(uint8_t pos, uint8_t digit);
+    void    fbPrint(uint8_t* poss, uint8_t* chars, uint8_t len);
+    void    fbPrint(uint8_t* chars, uint8_t len, uint8_t align = CENTER);
 
     uint8_t fbData[MAXMATRICES * MAXSCANLIMIT] = {0};
 
