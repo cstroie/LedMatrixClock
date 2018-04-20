@@ -23,6 +23,7 @@
 #include <avr/wdt.h>
 #include <avr/sleep.h>
 
+#include "Button.h"
 #include "DotMatrix.h"
 #include "DS3231.h"
 
@@ -38,6 +39,10 @@ const int BEEP_PIN  = 2;
 const int BTN1_PIN  = 3;
 const int BTN2_PIN  = 4;
 const int LIGHT_PIN = A0;
+
+// Buttons
+Button btn1(BTN1_PIN);
+Button btn2(BTN1_PIN);
 
 // The RTC
 DS3231 rtc;
@@ -662,6 +667,13 @@ void mtxSetMode(uint8_t mode) {
 }
 
 /**
+  Set the display to next mode
+*/
+void mtxNextMode() {
+  mtxSetMode(mtxMode + 1);
+}
+
+/**
   AT-Hayes style command processing
 */
 void handleHayes() {
@@ -1234,6 +1246,10 @@ void setup() {
   Serial.begin(9600);
   showBanner();
 
+  // Init the buttons
+  btn1.begin();
+  btn2.begin();
+
   // Read the configuration from EEPROM or
   // use the defaults if CRC8 does not match
   cfgReadEE(true);
@@ -1293,6 +1309,12 @@ void loop() {
   if (cfgData.aubr and (now > brgtCheckUntil)) {
     brgtCheckUntil = now + brgtCheckWait;
     mtx.intensity(brightness());
+  }
+
+  // Check the buttons and change the display mode
+  if (btn1.pressed()) {
+    // Display the next mode
+    mtxNextMode();
   }
 
   // Display, check once in a while or force
