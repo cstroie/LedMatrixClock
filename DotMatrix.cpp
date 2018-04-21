@@ -45,8 +45,8 @@ void DotMatrix::init(uint8_t csPin, uint8_t devices, uint8_t lines) {
   /* Pin configuration */
   SPI_CS = csPin;
   /* The number of matrices */
-  if (devices <= 0 || devices > MAXMATRICES)
-    devices = MAXMATRICES;
+  if (devices <= 0 || devices > MAX_MATRICES)
+    devices = MAX_MATRICES;
   _devices = devices;
   /* Configure the pins and SPI */
   pinMode(MOSI, OUTPUT);
@@ -289,7 +289,7 @@ void DotMatrix::sendSPI(uint8_t matrix, uint8_t reg, uint8_t data) {
   /* Chip select */
   digitalWrite(SPI_CS, LOW);
   /* Send the data */
-  SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
+  SPI.beginTransaction(SPISettings(SPI_SPEED, MSBFIRST, SPI_MODE0));
   for (int i = _devices * 2; i > 0; i--)
     SPI.transfer(cmdBuffer[i - 1]);
   SPI.endTransaction();
@@ -304,7 +304,7 @@ void DotMatrix::sendAllSPI(uint8_t reg, uint8_t data) {
   /* Chip select */
   digitalWrite(SPI_CS, LOW);
   /* Send the data */
-  SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
+  SPI.beginTransaction(SPISettings(SPI_SPEED, MSBFIRST, SPI_MODE0));
   for (int i = _devices; i > 0; i--) {
     SPI.transfer(reg);
     SPI.transfer(data);
@@ -321,7 +321,7 @@ void DotMatrix::sendAllSPI(uint8_t reg, uint8_t* data, uint8_t size) {
   /* Chip select */
   digitalWrite(SPI_CS, LOW);
   /* Send the data */
-  SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
+  SPI.beginTransaction(SPISettings(SPI_SPEED, MSBFIRST, SPI_MODE0));
   for (int i = size; i > 0; i--) {
     SPI.transfer(reg);
     SPI.transfer(data[i - 1]);

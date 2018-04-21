@@ -20,8 +20,9 @@
 #ifndef DOTMATRIX_H
 #define DOTMATRIX_H
 
-#define MAXMATRICES  8
-#define MAXSCANLIMIT 8
+#define MAX_MATRICES  8
+#define MAX_SCANLIMIT 8
+#define SPI_SPEED     1000000
 
 #include "Arduino.h"
 
@@ -353,7 +354,7 @@ enum DotMatrixOps {OP_NOOP,   OP_DIGIT0, OP_DIGIT1, OP_DIGIT2, OP_DIGIT3,
 class DotMatrix {
   public:
     DotMatrix();
-    void init(uint8_t csPin, uint8_t devices, uint8_t lines = MAXSCANLIMIT);
+    void init(uint8_t csPin, uint8_t devices, uint8_t lines = MAX_SCANLIMIT);
 
     void decodemode(uint8_t value);
     void intensity(uint8_t value);
@@ -377,13 +378,13 @@ class DotMatrix {
     void    fbPrint(uint8_t* poss, uint8_t* chars, uint8_t len);
     void    fbPrint(uint8_t* chars, uint8_t len, uint8_t align = CENTER);
 
-    uint8_t fbData[MAXMATRICES * MAXSCANLIMIT] = {0};
+    uint8_t fbData[MAX_MATRICES * MAX_SCANLIMIT] = {0};
 
   private:
-    uint8_t   _scanlimit = MAXSCANLIMIT;
-    uint8_t   _devices   = MAXMATRICES;
-    uint8_t   maxFB = MAXMATRICES * MAXSCANLIMIT;           // Maximum framebuffer size (compute at init)
-    uint8_t   cmdBuffer[MAXMATRICES * 2] = {0};
+    uint8_t   _scanlimit = MAX_SCANLIMIT;
+    uint8_t   _devices   = MAX_MATRICES;
+    uint8_t   maxFB = MAX_MATRICES * MAX_SCANLIMIT;         // Maximum framebuffer size (compute at init)
+    uint8_t   cmdBuffer[MAX_MATRICES * 2] = {0};
     int       SPI_CS;                                       // Chip Select pin
     uint8_t   FONT[fontChars][maxWidth];                    // RAM copy of the current font
     struct    chrLimits_t chrLimits[fontChars];             // Limits of the characters
