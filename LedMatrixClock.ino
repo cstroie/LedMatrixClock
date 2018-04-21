@@ -29,7 +29,7 @@
 
 // Software name and vesion
 const char DEVNAME[]  PROGMEM = "LedMatrix Clock";
-const char VERSION[]  PROGMEM = "v2.14";
+const char VERSION[]  PROGMEM = "v2.15";
 const char AUTHOR[]   PROGMEM = "Costin Stroie <costinstroie@eridu.eu.org>";
 const char DATE[]     PROGMEM = __DATE__;
 
@@ -420,18 +420,18 @@ uint16_t readVcc(int8_t k = 0) {
 uint8_t brightness() {
   // Use a static variable, one-time initialized with currently
   // read analog value from LDR
-  static uint16_t lstLight = analogRead(LIGHT_PIN);
+  static uint16_t lstLight = readAnalog(LIGHT_PIN);
   // Use another static variable, one-time initialized with currently
   // computed brightness value
   static uint8_t lstBrght = map(lstLight, 0, 1023, cfgData.mxbr, cfgData.mnbr);
   // Check for auto or manual adjustments
   if (cfgData.aubr) {
     // Automatic, read the LDR connected to LIGHT_PIN
-    uint16_t nowLight = analogRead(LIGHT_PIN);
-    // Exponential smooth 12.5%
-    lstLight = ((lstLight << 3) - lstLight + nowLight + 4) >> 3;
+    uint16_t nowLight = readAnalog(LIGHT_PIN);
+    // Exponential smooth 3.125%
+    lstLight = ((lstLight << 4) - lstLight + nowLight + 8) >> 4;
     // Map in min..max range
-    uint8_t brght = map(lstLight, 0, 1023, cfgData.mnbr, cfgData.mxbr);
+    uint8_t brght = map(lstLight, 0, 1023, cfgData.mxbr, cfgData.mnbr);
     // If not changed, return an invalid value
     if (brght == lstBrght)
       return 0xFF;
@@ -514,7 +514,7 @@ void showModeHHMM() {
         if (((cfgData.spkm == 1)
              and (hh >= cfgData.bfst) and (hh <= cfgData.blst))
             or (cfgData.spkm == 2))
-          beep();
+          beep(cfgData.spkl * 10);
       }
     }
   }
@@ -662,7 +662,8 @@ void showModeVers() {
   // Get the data from PROGMEM
   strncpy_P(data, VERSION, 16);
   // Convert the characters
-  for (uint8_t i = 0; i < 16; i++) {
+  uint8_t i;
+  for (i = 0; i < 16; i++) {
     if (data[i] == 0)
       break;
     else if (data[i] == '.')
@@ -673,7 +674,7 @@ void showModeVers() {
       data[i] = 0xFF;
   }
   // Print on framebuffer, right-aligned
-  mtx.fbPrint(data, sizeof(data) / sizeof(*data), mtx.RIGHT);
+  mtx.fbPrint(data, i, mtx.RIGHT);
 }
 
 /**
@@ -1318,6 +1319,8 @@ void setup() {
     // Check DST adjustments
     checkDST();
   }
+
+  beep(100);
 
   // Wait a second while displaying the verion
   delay(1000);
