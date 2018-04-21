@@ -437,6 +437,7 @@ uint8_t brightness() {
       return 0xFF;
     else {
       // Else, keep the current value and return
+      Serial.print(F("*B: ")); Serial.println(brght);
       lstBrght = brght;
       return brght;
     }
