@@ -29,7 +29,7 @@
 
 // Software name and vesion
 const char DEVNAME[]  PROGMEM = "LedMatrix Clock";
-const char VERSION[]  PROGMEM = "v2.15";
+const char VERSION[]  PROGMEM = "v2.16";
 const char AUTHOR[]   PROGMEM = "Costin Stroie <costinstroie@eridu.eu.org>";
 const char DATE[]     PROGMEM = __DATE__;
 
@@ -452,11 +452,13 @@ uint8_t brightness() {
 
   @param duration beep duration in ms
 */
-void beep(uint16_t duration = 5) {
-  pinMode(BEEP_PIN, OUTPUT);
-  digitalWrite(BEEP_PIN, HIGH);
-  delay(duration * cfgData.spkl);
-  digitalWrite(BEEP_PIN, LOW);
+void beep(uint16_t duration = 10) {
+  if (cfgData.spkl > 0) {
+    pinMode(BEEP_PIN, OUTPUT);
+    digitalWrite(BEEP_PIN, HIGH);
+    delay(duration * sq(cfgData.spkl));
+    digitalWrite(BEEP_PIN, LOW);
+  }
 }
 
 /**
@@ -515,7 +517,7 @@ void showModeHHMM() {
         if (((cfgData.spkm == 1)
              and (hh >= cfgData.bfst) and (hh <= cfgData.blst))
             or (cfgData.spkm == 2))
-          beep(cfgData.spkl * 10);
+          beep();
       }
     }
   }
@@ -1320,8 +1322,6 @@ void setup() {
     // Check DST adjustments
     checkDST();
   }
-
-  beep(100);
 
   // Wait a second while displaying the verion
   delay(1000);
