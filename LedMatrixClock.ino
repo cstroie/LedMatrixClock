@@ -29,7 +29,7 @@
 
 // Software name and vesion
 const char DEVNAME[]  PROGMEM = "LedMatrix Clock";
-const char VERSION[]  PROGMEM = "v2.16";
+const char VERSION[]  PROGMEM = "v2.17";
 const char AUTHOR[]   PROGMEM = "Costin Stroie <costinstroie@eridu.eu.org>";
 const char DATE[]     PROGMEM = __DATE__;
 
@@ -512,11 +512,10 @@ void showModeHHMM() {
       // Beep each hour, on the dot
       if (newHour) {
         // Get the hour in binary
-        uint8_t hh = rtc.R[0] * 0x10 + rtc.R[1];
+        uint8_t hh = 10 * rtc.R[0] + rtc.R[1];
         // Check the Speaker mode switch and hours interval
-        if (((cfgData.spkm == 1)
-             and (hh >= cfgData.bfst) and (hh <= cfgData.blst))
-            or (cfgData.spkm == 2))
+        if (((cfgData.spkm == 1) and (hh >= cfgData.bfst) and (hh <= cfgData.blst)) or
+            (cfgData.spkm == 2))
           beep();
       }
     }

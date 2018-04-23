@@ -158,13 +158,14 @@ bool DS3231::readTimeBCD() {
   uint8_t x;
   // Minutes
   x = Wire.read();
-  bool newHour = x == 0x00;
+  bool newHour = (x == 0x00);
   R[2] = x / 16; // (x & 0xF0) >> 4;
   R[3] = x % 16; // (x & 0x0F);
   // Hours
   x = Wire.read() & 0x3F;
   R[0] = x / 16; // (x & 0xF0) >> 4;
   R[1] = x % 16; // (x & 0x0F);
+  // Return true if new hour
   return newHour;
 }
 
