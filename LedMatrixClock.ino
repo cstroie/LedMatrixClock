@@ -28,8 +28,8 @@
 #include "DS3231.h"
 
 // Software name and vesion
-const char DEVNAME[]  PROGMEM = "LedMatrix Clock";
-const char VERSION[]  PROGMEM = "v2.17";
+const char DEVNAME[]  PROGMEM = "MatrixChronograph";
+const char VERSION[]  PROGMEM = "v2.18";
 const char AUTHOR[]   PROGMEM = "Costin Stroie <costinstroie@eridu.eu.org>";
 const char DATE[]     PROGMEM = __DATE__;
 
@@ -1194,17 +1194,34 @@ void handleHayes() {
 
       // Help messages
       case '?':
-        Serial.println(F("AT?"));
-        Serial.println(F("AT*Fn"));
-        Serial.println(F("AT*Bn"));
-        Serial.println(F("AT*Un"));
-        Serial.println(F("AT*T=\"YYYY/MM/DD HH:MM:SS\""));
-        Serial.println(F("AT&F"));
-        Serial.println(F("AT&V"));
-        Serial.println(F("AT&W"));
-        Serial.println(F("AT&Y"));
+        Serial.println(F("Set local echo              En    0..1"));
+        Serial.println(F("Show info                   In    0..7"));
+        Serial.println(F("Speaker volume level        Ln    0..3"));
+        Serial.println(F("Speaker control             Mn    0..3"));
+        Serial.println(F("Quiet Mode                  Qn    0..1"));
+        Serial.println(F("Reset                       Z"));
+
+        Serial.println(F("Load factory defaults       &F"));
+        Serial.println(F("Show the configuration      &V"));
+        Serial.println(F("Store the configuration     &W"));
+        Serial.println(F("Read the configuration      &Y"));
+
+        Serial.println(F("Auto brightness             *An   0..1"));
+        Serial.println(F("Brightness level            *Bn   0..15"));
+        Serial.println(F("DST switch                  *Dn   0..1"));
+        Serial.println(F("Latest hour to beep         *En   0..23"));
+        Serial.println(F("Display font                *Fn   0..15"));
+        Serial.println(F("Maximum auto brightness     *Hn   0..15"));
+        Serial.println(F("Lowest auto brightness      *Ln   0..15"));
+        Serial.println(F("MCU temperature correction  *Ln   -127..127   T+273.15-ADC"));
+        Serial.println(F("Display mode selection      *On   0..15"));
+        Serial.println(F("First hour to beep          *Sn   0..23"));
+        Serial.println(F("Time and date setting       *T=\"YYYY/MM/DD HH:MM:SS\""));
+        Serial.println(F("Temperature units           *Uc   C/F"));
+        Serial.println(F("Supply voltage correction   *Vn   -127..127   V*ADC/1.1/1024-1000"));
         result = true;
         break;
+
       default:
         result = (len == 0);
     }
