@@ -22,15 +22,15 @@
 // Watchdog, sleep
 #include <avr/wdt.h>
 #include <avr/sleep.h>
+#include <IRLremote.h>
 
 #include "Button.h"
 #include "DotMatrix.h"
 #include "DS3231.h"
-#include <IRremote.h>
 
 // Software name and vesion
 const char DEVNAME[]  PROGMEM = "MatrixChronograph";
-const char VERSION[]  PROGMEM = "v2.19";
+const char VERSION[]  PROGMEM = "v2.20";
 const char AUTHOR[]   PROGMEM = "Costin Stroie <costinstroie@eridu.eu.org>";
 const char DATE[]     PROGMEM = __DATE__;
 
@@ -46,9 +46,8 @@ const int LIGHT_PIN = A0;
 Button btn1(BTN1_PIN);
 Button btn2(BTN1_PIN);
 
-// IRed
-IRrecv irrecv(IRED_PIN);
-decode_results results;
+// Choose the IR protocol of your remote
+CNec iRed;
 
 // The RTC
 DS3231 rtc;
@@ -1379,8 +1378,9 @@ void setup() {
     checkDST();
   }
 
-  // Start the receiver
-  irrecv.enableIRIn();
+  // Start reading the remote
+  if (!iRed.begin(IRED_PIN))
+    Serial.println(F("You did not choose a valid IR pin."));
 
   // Wait a second while displaying the verion
   delay(1000);
@@ -1390,11 +1390,17 @@ void setup() {
   Main Arduino loop
 */
 void loop() {
-  // Check if new IR protocol data is available
-  if (irrecv.decode(&results)) {
-    Serial.println(results.value, HEX);
-    irrecv.resume(); // Receive the next value
-    if (results.value == 0x63d1bf9f) mtxNextMode();
+  // Check if new IR data is available
+  if (iRed.available()) {
+    // Get the new data from the remote
+    auto data = iRed.read();
+
+    // Print the protocol data
+    Serial.print(F("Address: 0x"));
+    Serial.println(data.address, HEX);
+    Serial.print(F("Command: 0x"));
+    Serial.println(data.command, HEX);
+    Serial.println();
   }
 
   // Check any command on serial port
