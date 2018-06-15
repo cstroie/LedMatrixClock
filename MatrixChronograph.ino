@@ -26,23 +26,29 @@
 #include "Button.h"
 #include "DotMatrix.h"
 #include "DS3231.h"
+#include <IRremote.h>
 
 // Software name and vesion
 const char DEVNAME[]  PROGMEM = "MatrixChronograph";
-const char VERSION[]  PROGMEM = "v2.18";
+const char VERSION[]  PROGMEM = "v2.19";
 const char AUTHOR[]   PROGMEM = "Costin Stroie <costinstroie@eridu.eu.org>";
 const char DATE[]     PROGMEM = __DATE__;
 
 // Pin definitions
 const int CS_PIN    = 10; // ~SS
 const int BEEP_PIN  = 5;
-const int BTN1_PIN  = 3;
+const int BTN1_PIN  = 6;
 const int BTN2_PIN  = 4;
+const int IRED_PIN  = 3;
 const int LIGHT_PIN = A0;
 
 // Buttons
 Button btn1(BTN1_PIN);
 Button btn2(BTN1_PIN);
+
+// IRed
+IRrecv irrecv(IRED_PIN);
+decode_results results;
 
 // The RTC
 DS3231 rtc;
@@ -1373,6 +1379,9 @@ void setup() {
     checkDST();
   }
 
+  // Start the receiver
+  irrecv.enableIRIn();
+
   // Wait a second while displaying the verion
   delay(1000);
 }
@@ -1381,6 +1390,13 @@ void setup() {
   Main Arduino loop
 */
 void loop() {
+  // Check if new IR protocol data is available
+  if (irrecv.decode(&results)) {
+    Serial.println(results.value, HEX);
+    irrecv.resume(); // Receive the next value
+    if (results.value == 0x63d1bf9f) mtxNextMode();
+  }
+
   // Check any command on serial port
   if (Serial.available())
     handleHayes();
