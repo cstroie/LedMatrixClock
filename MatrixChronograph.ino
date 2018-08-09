@@ -30,7 +30,7 @@
 
 // Software name and vesion
 const char DEVNAME[]  PROGMEM = "MatrixChronograph";
-const char VERSION[]  PROGMEM = "v2.20";
+const char VERSION[]  PROGMEM = "v2.21";
 const char AUTHOR[]   PROGMEM = "Costin Stroie <costinstroie@eridu.eu.org>";
 const char DATE[]     PROGMEM = __DATE__;
 
@@ -1254,7 +1254,7 @@ void doCommand() {
       Serial.println(F("Display font                *Fn   0..15"));
       Serial.println(F("Maximum auto brightness     *Hn   0..15"));
       Serial.println(F("Lowest auto brightness      *Ln   0..15"));
-      Serial.println(F("MCU temperature correction  *Ln   -127..127   T+273.15-ADC"));
+      Serial.println(F("MCU temperature correction  *Mn   -127..127   T+273.15-ADC"));
       Serial.println(F("Display mode selection      *On   0..15       HHMM,SS,DDMM,YY,TMP,VCC,MCU"));
       Serial.println(F("First hour to beep          *Sn   0..23"));
       Serial.println(F("Time and date setting       *T=\"YYYY/MM/DD HH:MM:SS\""));
