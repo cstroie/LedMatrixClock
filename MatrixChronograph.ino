@@ -30,7 +30,7 @@
 
 // Software name and vesion
 const char DEVNAME[]  PROGMEM = "MatrixChronograph";
-const char VERSION[]  PROGMEM = "v2.20";
+const char VERSION[]  PROGMEM = "v2.21";
 const char AUTHOR[]   PROGMEM = "Costin Stroie <costinstroie@eridu.eu.org>";
 const char DATE[]     PROGMEM = __DATE__;
 
@@ -47,6 +47,7 @@ Button btn1(BTN1_PIN);
 Button btn2(BTN1_PIN);
 
 // Choose the IR protocol of your remote
+//CHashIR iRed;
 CNec iRed;
 
 // The RTC
@@ -1253,7 +1254,7 @@ void doCommand() {
       Serial.println(F("Display font                *Fn   0..15"));
       Serial.println(F("Maximum auto brightness     *Hn   0..15"));
       Serial.println(F("Lowest auto brightness      *Ln   0..15"));
-      Serial.println(F("MCU temperature correction  *Ln   -127..127   T+273.15-ADC"));
+      Serial.println(F("MCU temperature correction  *Mn   -127..127   T+273.15-ADC"));
       Serial.println(F("Display mode selection      *On   0..15       HHMM,SS,DDMM,YY,TMP,VCC,MCU"));
       Serial.println(F("First hour to beep          *Sn   0..23"));
       Serial.println(F("Time and date setting       *T=\"YYYY/MM/DD HH:MM:SS\""));
@@ -1351,6 +1352,7 @@ void setup() {
   mtx.clear();
   // Set the brightness
   mtx.intensity(brightness());
+  brgtCheckUntil = millis();
   // Power on the matrices
   mtx.shutdown(false);
 
@@ -1394,7 +1396,49 @@ void loop() {
   if (iRed.available()) {
     // Get the new data from the remote
     auto data = iRed.read();
-
+    if (data.address == 0x728D) // Akai CD
+      switch (data.command) {
+        case 0:
+        case 1:
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+        case 6:
+        case 7:
+        case 8:
+        case 9:
+          mtxSetMode(data.command);
+          break;
+        case 0x1D:  // Next
+          if (++cfgData.font > fontCount)
+            cfgData.font = 0;
+          mtx.loadFont(cfgData.font);
+          mtxDisplayNow = true;
+          break;
+        case 0x1E:  // Prev
+          if (cfgData.font-- == 0)
+            cfgData.font = fontCount;
+          mtx.loadFont(cfgData.font);
+          mtxDisplayNow = true;
+          break;
+        case 0x16:  // Prg up
+          if (cfgData.brgt <= 0x0F)
+            cfgData.brgt++;
+          cfgData.aubr = false;
+          mtx.intensity(brightness());
+          break;
+        case 0x17:  // Prg dn
+          if (cfgData.brgt >= 0x00)
+            cfgData.brgt--;
+          cfgData.aubr = false;
+          mtx.intensity(brightness());
+          break;
+        case 0x0B:  // Mute
+          cfgData.aubr ^= 1;
+          mtx.intensity(brightness());
+          break;
+      }
     // Print the protocol data
     Serial.print(F("Address: 0x"));
     Serial.println(data.address, HEX);
