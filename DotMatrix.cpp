@@ -15,15 +15,6 @@
 
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-
-  Wiring
-
-  | Arduino   | MAX7219/MAX7221 |
-  | --------- | --------------- |
-  | MOSI (11) | DIN      (1)    |
-  | SCK  (13) | CLK     (13)    |
-  | I/O   (7) | LOAD/CS (12)    |
 */
 
 #include "Arduino.h"

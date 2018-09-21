@@ -30,12 +30,15 @@
 
 // Software name and vesion
 const char DEVNAME[]  PROGMEM = "MatrixChronograph";
-const char VERSION[]  PROGMEM = "v2.21";
+const char VERSION[]  PROGMEM = "v2.22";
 const char AUTHOR[]   PROGMEM = "Costin Stroie <costinstroie@eridu.eu.org>";
 const char DATE[]     PROGMEM = __DATE__;
 
 // Pin definitions
 const int CS_PIN    = 10; // ~SS
+const int MOSI_PIN  = 11; // MOSI
+const int MISO_PIN  = 12; // MISO
+const int SCK_PIN   = 13; // SCK
 const int BEEP_PIN  = 5;
 const int BTN1_PIN  = 6;
 const int BTN2_PIN  = 4;
