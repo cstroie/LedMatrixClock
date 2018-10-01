@@ -30,7 +30,7 @@
 
 // Software name and vesion
 const char DEVNAME[]  PROGMEM = "MatrixChronograph";
-const char VERSION[]  PROGMEM = "v2.22";
+const char VERSION[]  PROGMEM = "v2.23";
 const char AUTHOR[]   PROGMEM = "Costin Stroie <costinstroie@eridu.eu.org>";
 const char DATE[]     PROGMEM = __DATE__;
 
@@ -40,8 +40,8 @@ const int MOSI_PIN  = 11; // MOSI
 const int MISO_PIN  = 12; // MISO
 const int SCK_PIN   = 13; // SCK
 const int BEEP_PIN  = 5;
-const int BTN1_PIN  = 6;
-const int BTN2_PIN  = 4;
+const int BTN1_PIN  = 4;
+const int BTN2_PIN  = 6;
 const int IRED_PIN  = 3;
 const int LIGHT_PIN = A0;
 
@@ -1331,6 +1331,8 @@ void setup() {
   // Init the serial com and print the banner
   Serial.begin(9600);
   showBanner();
+  // Make us heard with a beep
+  beep();
 
   // Init the buttons
   btn1.begin();
