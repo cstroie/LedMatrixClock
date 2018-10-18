@@ -30,7 +30,7 @@
 
 // Software name and vesion
 const char DEVNAME[]  PROGMEM = "MatrixChronograph";
-const char VERSION[]  PROGMEM = "v2.23";
+const char VERSION[]  PROGMEM = "v2.24";
 const char AUTHOR[]   PROGMEM = "Costin Stroie <costinstroie@eridu.eu.org>";
 const char DATE[]     PROGMEM = __DATE__;
 
@@ -42,12 +42,14 @@ const int SCK_PIN   = 13; // SCK
 const int BEEP_PIN  = 5;
 const int BTN1_PIN  = 4;
 const int BTN2_PIN  = 6;
+const int INTSQ_PIN = A3;
 const int IRED_PIN  = 3;
 const int LIGHT_PIN = A0;
 
 // Buttons
 Button btn1(BTN1_PIN);
 Button btn2(BTN1_PIN);
+Button intsq(INTSQ_PIN);
 
 // Choose the IR protocol of your remote
 //CHashIR iRed;
@@ -1337,6 +1339,7 @@ void setup() {
   // Init the buttons
   btn1.begin();
   btn2.begin();
+  intsq.begin();
 
   // Read the configuration from EEPROM or
   // use the defaults if CRC8 does not match

@@ -71,19 +71,23 @@ bool DS3231::init(uint8_t twRTC, bool twInit) {
     Wire.write(0x80);         // 0x0D
     Wire.endTransmission();
 
-    // Check the control register
+    // Set the control register
     Wire.beginTransmission(rtcAddr);
     Wire.write(RTC_CONTROL);
+    // Start OSC, set INTCN, set ALRM2
+    Wire.write(B00000110);
     Wire.endTransmission();
+
+    // Set the status register
+    Wire.beginTransmission(rtcAddr);
+    Wire.write(RTC_STATUS);
+    if (Wire.endTransmission() != 0)
+      return false;
     // Request one byte
     Wire.requestFrom(rtcAddr, (uint8_t)1);
     uint8_t x = Wire.read();
-    // Enable Alarm 2 INT
-    Wire.beginTransmission(rtcAddr);
-    // Control Register
-    Wire.write(RTC_CONTROL);
-    // Set INTCN and A2IE bits
-    Wire.write(x | 0x06);
+    // Disable the 32kHz OSC
+    Wire.write(x & B11110111);
     Wire.endTransmission();
   }
   return rtcOk;
@@ -218,6 +222,13 @@ bool DS3231::lostPower() {
   // Request one byte
   Wire.requestFrom(rtcAddr, (uint8_t)1);
   uint8_t x = Wire.read();
+  // Reset the OSF bit
+  if (x & 0x80) {
+    Wire.beginTransmission(rtcAddr);
+    Wire.write(RTC_STATUS);
+    Wire.write(x & 0x7F);
+    Wire.endTransmission();
+  }
   // Return the OSF bit
   return x & 0x80;
 }
@@ -438,4 +449,3 @@ int8_t DS3231::dstSelfAdjust(bool dstFlag) {
   // Return the required DST adjustments
   return dstAdjust(Y, m, d, H, dstFlag);
 }
-
