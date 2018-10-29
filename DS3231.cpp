@@ -222,15 +222,8 @@ bool DS3231::lostPower() {
   // Request one byte
   Wire.requestFrom(rtcAddr, (uint8_t)1);
   uint8_t x = Wire.read();
-  // Reset the OSF bit
-  if (x & 0x80) {
-    Wire.beginTransmission(rtcAddr);
-    Wire.write(RTC_STATUS);
-    Wire.write(x & 0x7F);
-    Wire.endTransmission();
-  }
   // Return the OSF bit
-  return x & 0x80;
+  return (x & 0x80) != 0x00;
 }
 
 /**
