@@ -30,7 +30,7 @@
 
 // Software name and vesion
 const char DEVNAME[]  PROGMEM = "MatrixChronograph";
-const char VERSION[]  PROGMEM = "v2.24";
+const char VERSION[]  PROGMEM = "v2.25";
 const char AUTHOR[]   PROGMEM = "Costin Stroie <costinstroie@eridu.eu.org>";
 const char DATE[]     PROGMEM = __DATE__;
 
@@ -707,6 +707,7 @@ void showModeVers() {
   @param mode the chosen mode
 */
 void mtxSetMode(uint8_t mode) {
+  if (mode == 0xFF) mode = MODE_ALL - 1;
   mtxMode = mode % MODE_ALL;
   if (mtxMode <= MODE_SS) mtxModeUntil =  0UL;                    // Never expire for HHMM and SS
   else                    mtxModeUntil =  millis() + mtxModeWait; // Expire after a while
@@ -719,6 +720,13 @@ void mtxSetMode(uint8_t mode) {
 */
 void mtxNextMode() {
   mtxSetMode(mtxMode + 1);
+}
+
+/**
+  Set the display to previous mode
+*/
+void mtxPrevMode() {
+  mtxSetMode(mtxMode - 1);
 }
 
 /**
@@ -1447,12 +1455,67 @@ void loop() {
           mtx.intensity(brightness());
           break;
       }
-    // Print the protocol data
-    Serial.print(F("Address: 0x"));
-    Serial.println(data.address, HEX);
-    Serial.print(F("Command: 0x"));
-    Serial.println(data.command, HEX);
-    Serial.println();
+    else if (data.address == 0xFB04) // LG Game Remote
+      switch (data.command) {
+        case 0x06:  // Right
+          mtxNextMode();
+          break;
+        case 0x07:  // Left
+          mtxPrevMode();
+          break;
+        case 0x7C:  // Home
+          mtxSetMode(MODE_HHMM);
+          mtx.intensity(cfgDefault.brgt);
+          mtx.loadFont(cfgDefault.font);
+          mtxDisplayNow = true;
+          break;
+        case 0xE4:  // Game
+          cfgReadEE();
+          mtxSetMode(MODE_HHMM);
+          mtx.intensity(cfgData.brgt);
+          mtx.loadFont(cfgData.font);
+          mtxDisplayNow = true;
+          break;
+        case 0x00:  // Prg up
+          if (++cfgData.font > fontCount)
+            cfgData.font = 0;
+          mtx.loadFont(cfgData.font);
+          mtxDisplayNow = true;
+          break;
+        case 0x01:  // Prg dn
+          if (cfgData.font-- == 0)
+            cfgData.font = fontCount;
+          mtx.loadFont(cfgData.font);
+          mtxDisplayNow = true;
+          break;
+        case 0x02:  // Vol up
+          if (cfgData.brgt <= 0x0F)
+            cfgData.brgt++;
+          cfgData.aubr = false;
+          mtx.intensity(brightness());
+          break;
+        case 0x03:  // Vol dn
+          if (cfgData.brgt >= 0x00)
+            cfgData.brgt--;
+          cfgData.aubr = false;
+          mtx.intensity(brightness());
+          break;
+        case 0x0B:  // Source
+          cfgData.aubr ^= 1;
+          mtx.intensity(brightness());
+          break;
+        case 0x44:  // OK
+          beep();
+          break;
+      }
+    if (data.address != 0xFFFF) {
+      // Print the protocol data
+      Serial.print(F("Address: 0x"));
+      Serial.println(data.address, HEX);
+      Serial.print(F("Command: 0x"));
+      Serial.println(data.command, HEX);
+      Serial.println();
+    }
   }
 
   // Check any command on serial port
